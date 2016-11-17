@@ -103,15 +103,26 @@ function matrixRegFact(A::AbstractMatrix, k::Int,
   n, d = size(A)
   @assert (n,n) == size(K)
   @assert (d,d) == size(L)
-
+  iKA = (I + α*K) \ A # (I + αK)⁻¹ * A
+  iKAt = iKA' # A'*(I + αK)⁻¹
+  fst = -2*A'*iKA
+  snd = iKAt*iKA
+  thd = α*iKAt*K*iKA
+  res = β*L
+  for i in 1:length(res)
+    res[i] += fst[i] + snd[i] + thd[i] #Add the results in a loop to save space
+  end
+  #=
   invIαK = inv(I + α*K)
   #Three terms to find the eigenvectors of, save time by adding in a loop
   fst = -2*A'*invIαK*A
-  snd = (1 + α)*A'*invIαK^2*A
+  snd = A'*invIαK^2*A
+  thd = α*A'*invIαK*K*invIαK*A
   res = β*L
   for i in 1:length(res)
-    res[i] += fst[i] + snd[i]
+    res[i] += fst[i] + snd[i] + thd[i]
   end
+  =#
   Yt = eigvecs(res)[:,1:k]
   X = invIαK*A*Yt
   X,Yt'
