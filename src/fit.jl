@@ -1,8 +1,8 @@
-import Base.BLAS: axpy!
-export whole_objective, fit!
+#import Base.BLAS: axpy!
+#export whole_objective, fit!
 
 
-function whole_objective(g::GraphGLRM, XY::Matrix{Float64})
+function whole_objective(g::GGLRM, XY::Matrix{Float64})
   obj = 0
   for i in 1:size(g.X,1)
     for j in g.observed_features[i]
@@ -153,7 +153,7 @@ end
   αy, newobj
 end
 
-function LowRankModels.fit!(g::GraphGLRM,
+function LowRankModels.fit!(g::GGLRM,
                       params::ProxGradParams=ProxGradParams(),
                       ch::ConvergenceHistory=ConvergenceHistory("ProxGradGLRM"))
   X,Y = g.X, g.Y

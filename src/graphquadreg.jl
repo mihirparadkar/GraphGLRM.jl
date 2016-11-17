@@ -1,6 +1,6 @@
-import LowRankModels: prox, prox!, evaluate
-using LightGraphs
-export MatrixRegularizer, GraphQuadReg, matrix, prox, prox!, evaluate
+#import LowRankModels: prox, prox!, evaluate
+#using LightGraphs
+#export MatrixRegularizer, GraphQuadReg, matrix, prox, prox!, evaluate
 
 abstract MatrixRegularizer <: LowRankModels.Regularizer
 

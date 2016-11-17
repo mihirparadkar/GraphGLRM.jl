@@ -1,8 +1,8 @@
-using LowRankModels
-import LowRankModels: ObsArray, sort_observations, observations
-export GraphGLRM
+#using LowRankModels
+#import LowRankModels: ObsArray, sort_observations, observations
+#export GraphGLRM
 
-type GraphGLRM <: AbstractGLRM
+type GGLRM <: AbstractGLRM
   A::AbstractArray{Float64,2}  # The data table
   loss::Loss                   # array of loss functions
   rx::Regularizer              # Regularizer to apply to each row of X
@@ -14,7 +14,7 @@ type GraphGLRM <: AbstractGLRM
   Y::AbstractArray{Float64,2}  # Representation of features in low-rank space. A ≈ X'Y
 end
 
-function GraphGLRM(A::AbstractMatrix, loss::Loss, rx::Regularizer, ry::Regularizer, k::Int;
+function GGLRM(A::AbstractMatrix, loss::Loss, rx::Regularizer, ry::Regularizer, k::Int;
           X = randn(size(A,1), k), Y = randn(k, size(A,2)),
           obs = nothing,                                    # [(i₁,j₁), (i₂,j₂), ... (iₒ,jₒ)]
           observed_features = fill(1:size(A,2), size(A,1)), # [1:n, 1:n, ... 1:n] m times
@@ -37,9 +37,9 @@ function GraphGLRM(A::AbstractMatrix, loss::Loss, rx::Regularizer, ry::Regulariz
 
   if obs==nothing # if no specified array of tuples, use what was explicitly passed in or the defaults (all)
   # println("no obs given, using observed_features and observed_examples")
-    glrm = GraphGLRM(A,loss,rx,ry,k, observed_features, observed_examples, X,Y)
+    glrm = GGLRM(A,loss,rx,ry,k, observed_features, observed_examples, X,Y)
   else
-    glrm = GraphGLRM(A,loss,rx,ry,k, sort_observations(obs,size(A)...)..., X,Y)
+    glrm = GGLRM(A,loss,rx,ry,k, sort_observations(obs,size(A)...)..., X,Y)
   end
   glrm
 end

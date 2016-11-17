@@ -1,4 +1,4 @@
-export normalize!, normalize, impute_means, impute_zeros,
+export impute_means, impute_zeros,
       #Closed-form factorizations with regularization
       matrixRegFact, quadgraphRegFact
 
@@ -6,7 +6,7 @@ export normalize!, normalize, impute_means, impute_zeros,
 # divides by each column's standard deviation (if scale=true).
 # Returns (scaledData, mean, std), where mean or std may be
 #  empty matrices if center or scale are false
-function normalize!{T}(X::Matrix{T} ; center=true, scale=true)
+function standardize!{T}(X::Matrix{T} ; center=true, scale=true)
     n = size(X,1)
 
     local m
@@ -32,7 +32,7 @@ end
 ##Divides each column standard deviation (if scale=true)
 ##Skips NA entries in DataArrays
 ##Returns (scaledData, mean, std)
-function normalize!{T}(X::DataMatrix{T}; center=true, scale=true)
+function standardize!{T}(X::DataMatrix{T}; center=true, scale=true)
   n = size(X,1)
 
   local m
@@ -54,7 +54,7 @@ function normalize!{T}(X::DataMatrix{T}; center=true, scale=true)
   X, m, s
 end
 
-normalize(X; center=true, scale=true) = normalize!(copy(X), center=center, scale=scale)
+standardize(X; center=true, scale=true) = normalize!(copy(X), center=center, scale=scale)
 
 ##Imputes the column means to a DataMatrix and returns an ordinary Matrix
 ##of the same size.

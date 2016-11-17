@@ -1,6 +1,6 @@
-export IndexGraph
+#export IndexGraph
 
-using LightGraphs
+#using LightGraphs
 
 type IndexGraph{T}
   idx::Dict{T,Int64}
