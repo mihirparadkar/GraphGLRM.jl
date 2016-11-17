@@ -1,6 +1,6 @@
-export impute_means, impute_zeros,
-      #Closed-form factorizations with regularization
-      matrixRegFact, quadgraphRegFact
+#export impute_means, impute_zeros,
+#      #Closed-form factorizations with regularization
+#      matrixRegFact, quadgraphRegFact
 
 # Subtracts each column's mean (if center=true),
 # divides by each column's standard deviation (if scale=true).
@@ -54,7 +54,7 @@ function standardize!{T}(X::DataMatrix{T}; center=true, scale=true)
   X, m, s
 end
 
-standardize(X; center=true, scale=true) = normalize!(copy(X), center=center, scale=scale)
+standardize(X; center=true, scale=true) = standardize!(copy(X), center=center, scale=scale)
 
 ##Imputes the column means to a DataMatrix and returns an ordinary Matrix
 ##of the same size.

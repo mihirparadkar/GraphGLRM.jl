@@ -8,7 +8,7 @@ import LowRankModels: prox, prox!,
       fit!
 import Base.BLAS: axpy!
 
-export impute_means, impute_zeros, #Simple imputation for pre-preprocessing
+export impute_means, impute_zeros, standardize, standardize!, #Simple imputation for pre-preprocessing
       matrixRegFact, quadgraphRegFact, #Closed-form factorizations with regularization
       IndexGraph, #The data structure for easily initializing a GraphQuadReg
 
