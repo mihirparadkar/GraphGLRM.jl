@@ -1,7 +1,10 @@
 #export IndexGraph
 
 #using LightGraphs
-
+"""
+The data structure that stores a graph and a mapping from indices to their
+representations in the graph
+"""
 type IndexGraph{T}
   idx::Dict{T,Int64}
   graph::Graph

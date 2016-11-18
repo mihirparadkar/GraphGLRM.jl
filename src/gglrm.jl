@@ -23,14 +23,14 @@ function GGLRM(A::AbstractMatrix, loss::Loss, rx::Regularizer, ry::Regularizer, 
   n, d = size(A)
   if isa(rx, GraphQuadReg)
     #A graph regularizer on X should be able to multiply with X
-    if (n,n) != size(rx.QL)
+    if (n,n) != size(matrix(rx))
       error("Graph regularizer on X must have as many nodes as there are rows in X")
     end
   end
 
   if isa(ry, GraphQuadReg)
     #Same goes for Y
-    if (d,d) != size(ry.QL)
+    if (d,d) != size(matrix(ry))
       error("Graph regularizer on Y must have as many nodes as there are columns in Y")
     end
   end
