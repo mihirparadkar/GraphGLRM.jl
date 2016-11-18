@@ -126,7 +126,7 @@ end
                               XY::Matrix{Float64}, newXY::Matrix{Float64},
                               αy::Number)
   #l = 1.5
-  l = mapreduce(length,+,g.observed_features) + 1
+  l = (mapreduce(length,+,g.observed_features) + 1)/length(g.observed_features)
   #obj = threaded_objective(g,XY)
   obj = whole_objective(g,XY)
   newobj = NaN
