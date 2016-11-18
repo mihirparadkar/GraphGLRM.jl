@@ -20,6 +20,12 @@ function standardize!{T}(X::Matrix{T} ; center=true, scale=true)
     local s
     if scale
         s = std(X,1)
+        #Make sure there are no NaN elements or 0 elements of the standard deviation
+        for i in s
+          if s[i] == 0 || s[i] === NaN
+            s[i] = 1
+          end
+        end
         X = X ./ s
     else
         s = similar(X, 0, 0)
@@ -46,6 +52,12 @@ function standardize!{T}(X::DataMatrix{T}; center=true, scale=true)
   local s
   if scale
     s = sqrt(var(X,1,skipna=true))
+    #Make sure there are no NaN elements or 0 elements of the standard deviation
+    for i in s
+      if s[i] == 0 || s[i] === NaN
+        s[i] = 1
+      end
+    end
     X = X ./ s
   else
     s = similar(X,0,0)
