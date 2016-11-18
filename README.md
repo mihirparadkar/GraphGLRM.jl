@@ -25,3 +25,31 @@ ig = IndexGraph([1,2,3,4,5], [(1,2), (1,3), (1,4), (1,5)])
 
 # GraphQuadReg
 A combined graph-Laplacian and quadratic regularizer for use in a Low Rank Model.
+Usage:
+```julia
+GraphQuadReg(ig, graphscale, quadamt)
+```
+Example:
+```julia
+gq = GraphQuadReg(ig, 2., 0.05)
+```
+It is highly recommended to use at least a small amount of additional quadratic
+regularization to ensure convergence because the laplacian matrix may not be
+positive definite.
+
+# GGLRM
+In the style of most dimensionality reduction algorithms, the constructor
+is an acronym (Graph Generalized Low Rank Model).
+For a matrix with no missing data, usage is as follows:
+```julia
+gm = GGLRM(A, loss, rx, ry, k)
+```
+For a matrix with missing data, add an obs parameter to only optimize over
+the observed set of data
+```julia
+gm = GGLRM(Amissing, loss, rx, ry, k, obs=observations(Amissing))
+```
+To fit this model, call:
+```julia
+fit!(gm, ProxGradParams(...))
+```
