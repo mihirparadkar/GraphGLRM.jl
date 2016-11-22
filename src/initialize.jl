@@ -153,3 +153,15 @@ function quadgraphRegFact(A::Matrix{Float64}, k::Int, α::Number,
   X = 1/(1 + α)*A*Yt
   X,Yt'
 end
+
+"""
+Initialize the GLRM with an SVD decomposition for faster convergence.
+This also solves the problem where identical quadratic regularization is on
+both X and Y
+"""
+function init_qqreg!(gg::GGLRM)
+  A = impute_zeros(gg.A)
+  F = svdfact(A)
+  A_mul_B!(gg.X, F[:U][:,1:gg.k], Diagonal(F[:S][1:gg.k]))
+  A_mul_Bt!(gg.Y, Diagonal(F[:S][1:gg.k]), F[:Vt][:,1:gg.k])
+end

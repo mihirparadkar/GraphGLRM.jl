@@ -89,7 +89,7 @@ end
                             XY::Matrix{Float64}, newXY::Matrix{Float64},
                             αx::Number)
   #l = 1.5
-  l = (mapreduce(length,+,g.observed_features) + 1)/length(g.observed_examples)
+  l = maximum(map(length, g.observed_features))+1#(mapreduce(length,+,g.observed_features) + 1)
   #obj = threaded_objective(g,XY)
   obj = whole_objective(g,XY)
   newobj = NaN
@@ -107,7 +107,7 @@ end
     #newobj = threaded_objective(g, newXY)
     if newobj < obj
       copy!(g.X, newX)
-      αx *= 1.05
+      αx *= (1.05)
       break
     else #Try again with smaller step-size
       copy!(newX, g.X)
@@ -126,7 +126,7 @@ end
                               XY::Matrix{Float64}, newXY::Matrix{Float64},
                               αy::Number)
   #l = 1.5
-  l = (mapreduce(length,+,g.observed_features) + 1)/length(g.observed_features)
+  l = maximum(map(length, g.observed_examples)) + 1#(mapreduce(length,+,g.observed_features) + 1)
   #obj = threaded_objective(g,XY)
   obj = whole_objective(g,XY)
   newobj = NaN
@@ -195,7 +195,7 @@ function LowRankModels.fit!(g::GGLRM,
     αy, objy = _proxStepY!(g, params, newY, gy, XY, newXY, αy)
     A_mul_B!(XY, X, Y) #Get the new XY matrix for objective
     if t % 10 == 0
-      println(objy)
+      println("Iteration $t, objective value: $objy")
     end
     #Update convergence history
     obj = objy
