@@ -6,7 +6,7 @@ using DataArrays
 import LowRankModels: prox, prox!,
       evaluate, ObsArray, sort_observations, observations,
       fit!
-import Base.BLAS: axpy!
+import Base.BLAS: axpy!, gemm!
 
 export impute_means, impute_zeros, standardize, standardize!, #Simple imputation for pre-preprocessing
       matrixRegFact, quadgraphRegFact, init_qqreg!,#Closed-form factorizations with regularization

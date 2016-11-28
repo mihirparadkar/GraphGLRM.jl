@@ -3,7 +3,7 @@
 #export GraphGLRM
 
 type GGLRM <: AbstractGLRM
-  A::AbstractArray{Float64,2}  # The data table
+  A                            # The data table
   losses::Array{Loss,1}        # array of loss functions
   rx::Regularizer              # Regularizer to apply to each row of X
   ry::Regularizer              # Array of regularizers to be applied to each column of Y
@@ -14,8 +14,16 @@ type GGLRM <: AbstractGLRM
   Y::AbstractArray{Float64,2}  # Representation of features in low-rank space. A ≈ X'Y
 end
 
+function no_multidim_edges(ry::GraphQuadReg, losses::Array)
+  for (i,j) in edges(ry.idxgraph.graph)
+    if (embedding_dim(losses[i]) > 1) || (embedding_dim(losses[j]) > 1)
+      error("Graph regularizer cannot have any edges into or out of a multidimensional loss")
+    end
+  end
+end
+
 function GGLRM(A::AbstractMatrix, losses::Array, rx::Regularizer, ry::Regularizer, k::Int;
-          X = randn(k, size(A,1)), Y = randn(k, size(A,2)),
+          X = randn(k, size(A,1)), Y = randn(k,embedding_dim(losses)),
           obs = nothing,                                    # [(i₁,j₁), (i₂,j₂), ... (iₒ,jₒ)]
           observed_features = fill(1:size(A,2), size(A,1)), # [1:n, 1:n, ... 1:n] m times
           observed_examples = fill(1:size(A,1), size(A,2))) # [1:m, 1:m, ... 1:m] n times)# [(i₁,j₁), (i₂,j₂), ... (iₒ,jₒ)]
@@ -31,16 +39,18 @@ function GGLRM(A::AbstractMatrix, losses::Array, rx::Regularizer, ry::Regularize
   if isa(ry, GraphQuadReg)
     #Same goes for Y
     if (d,d) != size(matrix(ry))
-      error("Graph regularizer on Y must have as many nodes as there are columns in Y")
+      error("Graph regularizer on Y must have as many nodes as there are columns in A")
     end
-  end
-
-  if any(map(length, get_yidxs(losses)) .> 1)
-    error("Multidimensional loss functions are not yet supported with graph regularizers")
+    no_multidim_edges(ry, losses)
+    ry = GraphQuadReg(embed_graph(ry.idxgraph, get_yidxs(losses)), ry.scale, ry.quadamt)
   end
 
   if size(X) != (k, size(A,1))
     error("X must have the same number of columns as there are rows in A. This is the transpose of the monograph's description but makes for efficient memory access")
+  end
+
+  if size(Y)!=(k,sum(map(embedding_dim, losses)))
+    error("Y must be of size (k,d) where d is the sum of the embedding dimensions of all the losses. \n(1 for real-valued losses, and the number of categories for categorical losses).")
   end
 
   if obs==nothing # if no specified array of tuples, use what was explicitly passed in or the defaults (all)

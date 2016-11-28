@@ -7,6 +7,7 @@ abstract MatrixRegularizer <: LowRankModels.Regularizer
 type GraphQuadReg <: MatrixRegularizer
   QL::AbstractMatrix{Float64}
   scale::Float64
+  quadamt::Float64
   idxgraph::IndexGraph
 end
 
@@ -17,12 +18,12 @@ matrix(g::GraphQuadReg) = g.QL
 function GraphQuadReg(g::LightGraphs.Graph, scale::Float64=1., quadamt::Float64=1.)
   L = laplacian_matrix(g)
   QL = L + quadamt*I
-  GraphQuadReg(QL, scale, IndexGraph(g))
+  GraphQuadReg(QL, scale, quadamt, IndexGraph(g))
 end
 
 function GraphQuadReg(IG::IndexGraph, scale::Float64=1., quadamt::Float64=1.)
   QL = laplacian_matrix(IG.graph) + quadamt*I
-  GraphQuadReg(QL, scale, IG)
+  GraphQuadReg(QL, scale, quadamt, IG)
 end
 
 function prox(g::GraphQuadReg, Y::AbstractMatrix{Float64}, α::Number;

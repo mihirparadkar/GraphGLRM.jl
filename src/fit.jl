@@ -3,10 +3,11 @@
 
 
 function whole_objective(g::GGLRM, XY::Matrix{Float64})
+  yidxs = get_yidxs(g.losses)
   obj = 0
   for i in 1:size(g.X,2)
     for j in g.observed_features[i]
-      @inbounds obj += evaluate(g.losses[j], XY[i,j], g.A[i,j])
+      @inbounds obj += evaluate(g.losses[j], XY[i,yidxs[j]], g.A[i,j])
     end
   end
   obj += evaluate(g.rx, g.X) + evaluate(g.ry, g.Y)
@@ -32,6 +33,7 @@ end
 =#
 
 @inline function _updateGradX!(g::AbstractGLRM, XY::Matrix{Float64}, gx::Matrix{Float64})
+  yidxs = get_yidxs(g.losses)
   #scale the gradient to zero
   scale!(gx,0)
 
@@ -39,22 +41,33 @@ end
   for i in 1:size(XY,1)
     gxi = view(gx, :, i)
     for j in g.observed_features[i]
-      #gxi[:] += grad(g.losses[j], XY[i,j], g.A[i,j])*view(g.Y, :, j)
-      axpy!(grad(g.losses[j], XY[i,j], g.A[i,j]), view(g.Y, :, j), gxi)
+      curgrad = grad(g.losses[j], XY[i,yidxs[j]], g.A[i,j])
+      if isa(curgrad, Number)
+        #gxi[:] += grad(g.losses[j], XY[i,j], g.A[i,j])*view(g.Y, :, j)
+        axpy!(curgrad, view(g.Y, :, yidxs[j]), gxi)
+      else
+        gemm!('N','N',1.0,view(g.Y, :, yidxs[j]), curgrad, 1.0, gxi)
+      end
     end
   end
 end
 
 @inline function _updateGradY!(g::AbstractGLRM, XY::Matrix{Float64}, gy::Matrix{Float64})
+  yidxs = get_yidxs(g.losses)
   #scale the y gradient to zero
   scale!(gy, 0)
 
   #Update the gradient
-  for j in 1:size(g.Y,2)
-    gyj = view(gy, :, j)
+  for j in 1:size(g.A,2)
+    gyj = view(gy, :, yidxs[j])
     for i in g.observed_examples[j]
-      #gyj[:] += grad(g.losses[j], XY[i,j], g.A[i,j])*view(g.X, :, i)
-      axpy!(grad(g.losses[j], XY[i,j], g.A[i,j]), view(g.X, :, i), gyj)
+      curgrad = grad(g.losses[j], XY[i,yidxs[j]], g.A[i,j])
+      if isa(curgrad, Number)
+        #gyj[:] += grad(g.losses[j], XY[i,j], g.A[i,j])*view(g.X, :, i)
+        axpy!(curgrad, view(g.X, :, i), gyj)
+      else
+        gemm!('N','T',1.0,view(g.X, :, i), curgrad, 1.0, gyj)
+      end
     end
   end
 end

@@ -34,3 +34,12 @@ function IndexGraph(g::Graph)
   graph = g
   IndexGraph(idx, graph)
 end
+
+function embed_graph(ig::IndexGraph, yidxs::Array)
+  nodes = 1:yidxs[end][end]
+  newedges = Tuple{Int64,Int64}[]
+  for (i,j) in edges(ig.graph)
+    push!(newedges, (yidxs[i], yidxs[j]))
+  end
+  IndexGraph(nodes, newedges)
+end
