@@ -4,16 +4,12 @@
 
 function whole_objective(g::GGLRM, XY::Matrix{Float64})
   obj = 0
-  for i in 1:size(g.X,1)
+  for i in 1:size(g.X,2)
     for j in g.observed_features[i]
-      @inbounds obj += evaluate(g.loss, XY[i,j], g.A[i,j])
+      @inbounds obj += evaluate(g.losses[j], XY[i,j], g.A[i,j])
     end
   end
-  if isa(g.rx, MatrixRegularizer)
-    obj += evaluate(g.rx, g.X, updateY=false) + evaluate(g.ry, g.Y)
-  else
-    obj += evaluate(g.rx, g.X) + evaluate(g.ry, g.Y)
-  end
+  obj += evaluate(g.rx, g.X) + evaluate(g.ry, g.Y)
   obj
 end
 
@@ -41,8 +37,10 @@ end
 
   #Update the gradient
   for i in 1:size(XY,1)
+    gxi = view(gx, :, i)
     for j in g.observed_features[i]
-      @inbounds gx[i,:] += grad(g.loss, XY[i,j], g.A[i,j])*view(g.Y, :, j)
+      #gxi[:] += grad(g.losses[j], XY[i,j], g.A[i,j])*view(g.Y, :, j)
+      axpy!(grad(g.losses[j], XY[i,j], g.A[i,j]), view(g.Y, :, j), gxi)
     end
   end
 end
@@ -53,8 +51,10 @@ end
 
   #Update the gradient
   for j in 1:size(g.Y,2)
+    gyj = view(gy, :, j)
     for i in g.observed_examples[j]
-      @inbounds gy[:,j] += grad(g.loss, XY[i,j], g.A[i,j])*g.X[i,:]
+      #gyj[:] += grad(g.losses[j], XY[i,j], g.A[i,j])*view(g.X, :, i)
+      axpy!(grad(g.losses[j], XY[i,j], g.A[i,j]), view(g.X, :, i), gyj)
     end
   end
 end
@@ -97,12 +97,8 @@ end
     stepsize = αx/l
 
     axpy!(-stepsize, gx, newX)
-    if isa(g.rx, MatrixRegularizer)
-      prox!(g.rx, newX, stepsize, updateY=false)
-    else
-      prox!(g.rx, newX, stepsize)
-    end
-    A_mul_B!(newXY, newX, g.Y)
+    prox!(g.rx, newX, stepsize)
+    At_mul_B!(newXY, newX, g.Y)
     newobj = whole_objective(g, newXY)
     #newobj = threaded_objective(g, newXY)
     if newobj < obj
@@ -134,7 +130,7 @@ end
     stepsize = αy/l
     axpy!(-stepsize, gy, newY)
     prox!(g.ry, newY, stepsize)
-    A_mul_B!(newXY, g.X, newY)
+    At_mul_B!(newXY, g.X, newY)
     newobj = whole_objective(g, newXY)
     #newobj = threaded_objective(g, newXY)
     if newobj < obj
@@ -158,10 +154,10 @@ function LowRankModels.fit!(g::GGLRM,
                       ch::ConvergenceHistory=ConvergenceHistory("ProxGradGLRM"))
   X,Y = g.X, g.Y
   A = g.A
-  loss, rx, ry = g.loss, g.rx, g.ry
+  losses, rx, ry = g.losses, g.rx, g.ry
 
   #Initialize X*Y
-  XY = g.X * g.Y
+  XY = At_mul_B(X,Y)
 
   tm = 0
   update_ch!(ch, tm, whole_objective(g,XY))
@@ -187,13 +183,13 @@ function LowRankModels.fit!(g::GGLRM,
     _updateGradX!(g,XY,gx)
     #Take a prox step with line search
     αx, objx = _proxStepX!(g, params, newX, gx, XY, newXY, αx)
-    A_mul_B!(XY, X, Y) #Get the new XY matrix for objective
+    At_mul_B!(XY, X, Y) #Get the new XY matrix for objective
 
     #Y Update---------------------------------------------------------------
     #_threadedupdateGradY!(g,XY,gy)
     _updateGradY!(g,XY,gy)
     αy, objy = _proxStepY!(g, params, newY, gy, XY, newXY, αy)
-    A_mul_B!(XY, X, Y) #Get the new XY matrix for objective
+    At_mul_B!(XY, X, Y) #Get the new XY matrix for objective
     if t % 10 == 0
       println("Iteration $t, objective value: $objy")
     end

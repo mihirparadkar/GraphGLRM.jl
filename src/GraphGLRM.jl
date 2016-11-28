@@ -16,7 +16,7 @@ export impute_means, impute_zeros, standardize, standardize!, #Simple imputation
       MatrixRegularizer, GraphQuadReg, matrix, prox, prox!, evaluate,
 
       #The constructors for the GGLRM itself
-      GGLRM,
+      GGLRM, add_offset!,
 
       #The alternating minimization and objective calculation
       fit!, whole_objective
@@ -25,6 +25,7 @@ export impute_means, impute_zeros, standardize, standardize!, #Simple imputation
 include("indexgraph.jl")
 include("graphquadreg.jl")
 include("gglrm.jl")
+include("offsetscale.jl")
 include("initialize.jl")
 include("fit.jl")
 
