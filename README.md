@@ -3,8 +3,7 @@
 Graph Regularized Low Rank Models (http://github.com/madeleineudellLowRankModels.jl)
 Allows for the specification of graphs representing relation between different examples or features.
 This uses the graph-Laplacian matrix to regularize the thin factor, the wide factor, or both, with
-any single-dimensional loss function (i.e. QuadLoss() for euclidean distance, L1Loss() for absolute distance,
-HingeLoss() or LogisticLoss() for binary classification). Additionally, the other supported regularizers are
+any loss function. Additionally, the other supported regularizers are
 QuadReg() (Quadratic Regularization), OneReg() (Absolute-value regularization), NonNegConstraint(), and NonNegOneReg()
 
 This package also provides closed-form solutions to particular low-rank models, where the loss
