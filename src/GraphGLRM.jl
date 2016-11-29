@@ -24,6 +24,7 @@ export impute_means, impute_zeros, standardize, standardize!, #Simple imputation
 # package code goes here
 include("indexgraph.jl")
 include("graphquadreg.jl")
+include("regularizers.jl")
 include("gglrm.jl")
 include("offsetscale.jl")
 include("initialize.jl")
