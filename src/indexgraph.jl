@@ -35,6 +35,9 @@ function IndexGraph(g::Graph)
   IndexGraph(idx, graph)
 end
 
+"""
+Helper function to embed an index graph into multidimensional losses.
+"""
 function embed_graph(ig::IndexGraph, yidxs::Array)
   nodes = 1:yidxs[end][end]
   newedges = Tuple{Int64,Int64}[]

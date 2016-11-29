@@ -1,8 +1,8 @@
 #import Base.BLAS: axpy!
 #export whole_objective, fit!
 
-
-function whole_objective(g::GGLRM, XY::Matrix{Float64})
+#Evaluates the loss functions over the matrix XY
+function loss_objective(g::GGLRM, XY::Matrix{Float64})
   yidxs = get_yidxs(g.losses)
   obj = 0
   for i in 1:size(g.X,2)
@@ -10,8 +10,21 @@ function whole_objective(g::GGLRM, XY::Matrix{Float64})
       @inbounds obj += evaluate(g.losses[j], XY[i,yidxs[j]], g.A[i,j])
     end
   end
-  obj += evaluate(g.rx, g.X) + evaluate(g.ry, g.Y)
   obj
+end
+
+#Calculates the whole objective of the GLRM
+function whole_objective(g::GGLRM, XY::Matrix{Float64};
+                        X::Matrix{Float64}=g.X, Y::Matrix{Float64}=g.Y)
+  #=
+  yidxs = get_yidxs(g.losses)
+  obj = 0
+  for i in 1:size(g.X,2)
+    for j in g.observed_features[i]
+      @inbounds obj += evaluate(g.losses[j], XY[i,yidxs[j]], g.A[i,j])
+    end
+  end =#
+  loss_objective(g, XY) + evaluate(g.rx, X) + evaluate(g.ry, Y)
 end
 
 #=
@@ -103,8 +116,8 @@ end
                             αx::Number)
   #l = 1.5
   l = maximum(map(length, g.observed_features))+1#(mapreduce(length,+,g.observed_features) + 1)
-  #obj = threaded_objective(g,XY)
-  obj = whole_objective(g,XY)
+
+  obj = loss_objective(g,XY) + evaluate(g.rx, g.X)
   newobj = NaN
   while αx > params.min_stepsize #Linesearch to find the new step size
     stepsize = αx/l
@@ -112,7 +125,7 @@ end
     axpy!(-stepsize, gx, newX)
     prox!(g.rx, newX, stepsize)
     At_mul_B!(newXY, newX, g.Y)
-    newobj = whole_objective(g, newXY)
+    newobj = loss_objective(g, newXY) + evaluate(g.rx, newX)
     #newobj = threaded_objective(g, newXY)
     if newobj < obj
       copy!(g.X, newX)
@@ -137,14 +150,14 @@ end
   #l = 1.5
   l = maximum(map(length, g.observed_examples)) + 1#(mapreduce(length,+,g.observed_features) + 1)
   #obj = threaded_objective(g,XY)
-  obj = whole_objective(g,XY)
+  obj = loss_objective(g, XY) + evaluate(g.ry, g.Y)
   newobj = NaN
   while αy > params.min_stepsize #Linesearch to find the new step size
     stepsize = αy/l
     axpy!(-stepsize, gy, newY)
     prox!(g.ry, newY, stepsize)
     At_mul_B!(newXY, g.X, newY)
-    newobj = whole_objective(g, newXY)
+    newobj = loss_objective(g, newXY) + evaluate(g.ry, newY)
     #newobj = threaded_objective(g, newXY)
     if newobj < obj
       copy!(g.Y, newY)
@@ -204,10 +217,10 @@ function LowRankModels.fit!(g::GGLRM,
     αy, objy = _proxStepY!(g, params, newY, gy, XY, newXY, αy)
     At_mul_B!(XY, X, Y) #Get the new XY matrix for objective
     if t % 10 == 0
-      println("Iteration $t, objective value: $objy")
+      println("Iteration $t, objective value: $(objy + evaluate(rx, g.X))")
     end
     #Update convergence history
-    obj = objy
+    obj = objy + evaluate(rx, g.X)
     tm = time() - tm
     update_ch!(ch, tm, obj)
     tm = time()

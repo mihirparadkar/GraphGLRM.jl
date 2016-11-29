@@ -14,7 +14,7 @@ type GGLRM <: AbstractGLRM
   Y::AbstractArray{Float64,2}  # Representation of features in low-rank space. A ≈ X'Y
 end
 
-function no_multidim_edges(ry::GraphQuadReg, losses::Array)
+function no_multidim_edges(ry::AbstractGraphReg, losses::Array)
   for (i,j) in edges(ry.idxgraph.graph)
     if (embedding_dim(losses[i]) > 1) || (embedding_dim(losses[j]) > 1)
       error("Graph regularizer cannot have any edges into or out of a multidimensional loss")
@@ -29,20 +29,21 @@ function GGLRM(A::AbstractMatrix, losses::Array, rx::Regularizer, ry::Regularize
           observed_examples = fill(1:size(A,1), size(A,2))) # [1:m, 1:m, ... 1:m] n times)# [(i₁,j₁), (i₂,j₂), ... (iₒ,jₒ)]
 
   n, d = size(A)
-  if isa(rx, GraphQuadReg)
+  if isa(rx, AbstractGraphReg)
     #A graph regularizer on X should be able to multiply with X
     if (n,n) != size(matrix(rx))
       error("Graph regularizer on X must have as many nodes as there are rows in X")
     end
   end
 
-  if isa(ry, GraphQuadReg)
+  if isa(ry, AbstractGraphReg)
     #Same goes for Y
     if (d,d) != size(matrix(ry))
       error("Graph regularizer on Y must have as many nodes as there are columns in A")
     end
     no_multidim_edges(ry, losses)
-    ry = GraphQuadReg(embed_graph(ry.idxgraph, get_yidxs(losses)), ry.scale, ry.quadamt)
+    #ry = GraphQuadReg(embed_graph(ry.idxgraph, get_yidxs(losses)), ry.scale, ry.quadamt)
+    ry = embed(ry, get_yidxs(losses))
   end
 
   if size(X) != (k, size(A,1))

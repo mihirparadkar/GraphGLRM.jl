@@ -2,9 +2,9 @@
 #using LightGraphs
 #export MatrixRegularizer, GraphQuadReg, matrix, prox, prox!, evaluate
 
-abstract MatrixRegularizer <: LowRankModels.Regularizer
+abstract AbstractGraphReg <: LowRankModels.Regularizer
 
-type GraphQuadReg <: MatrixRegularizer
+type GraphQuadReg <: AbstractGraphReg
   QL::AbstractMatrix{Float64}
   scale::Float64
   quadamt::Float64
@@ -26,43 +26,28 @@ function GraphQuadReg(IG::IndexGraph, scale::Float64=1., quadamt::Float64=1.)
   GraphQuadReg(QL, scale, quadamt, IG)
 end
 
-function prox(g::GraphQuadReg, Y::AbstractMatrix{Float64}, α::Number;
-              updateY::Bool=true)
+function prox(g::GraphQuadReg, Y::AbstractMatrix{Float64}, α::Number)
   #Y*(2α*g.scale*g.QL + eye(g.QL))⁻¹
   #g.QL is guaranteed to be sparse and symmetric positive definite
   #Factorize (2α*g.scale*g.QL + I)
   QL = Symmetric((2α*g.scale)*g.QL)
-  if updateY
-    #invQLpI = cholfact(QL, shift=1.) \ eye(QL)
-    #Y*invQLpI
-    A_ldiv_Bt(cholfact(QL, shift=1.), Y)'
-  else
-    #Transpose the operation to work with regularizer on X
-    A_ldiv_B(cholfact(QL, shift=1.), Y)
-  end
+  A_ldiv_Bt(cholfact(QL, shift=1.), Y)'
 end
 
-function prox!(g::GraphQuadReg, Y::AbstractMatrix{Float64}, α::Number;
-                updateY::Bool=true)
+function prox!(g::GraphQuadReg, Y::AbstractMatrix{Float64}, α::Number)
   #Y*(2α*g.scale*g.QL + eye(g.QL))⁻¹
   #g.QL is guaranteed to be sparse and symmetric positive definite
   #Factorize (2α*g.scale*g.QL + I)
   QL = Symmetric((2α*g.scale)*g.QL)
-  if updateY
-    #invQLpI = cholfact(QL, shift=1.) \ eye(QL)
-    #Y*invQLpI
-    transpose!(Y, A_ldiv_Bt(cholfact(QL, shift=1.), Y))
-  else
-    #Update X inplace
-    copy!(Y, cholfact(QL, shift=1.) \ Y)
-  end
+  #invQLpI = cholfact(QL, shift=1.) \ eye(QL)
+  #Y*invQLpI
+  transpose!(Y, A_ldiv_Bt(cholfact(QL, shift=1.), Y))
 end
 
-function evaluate(g::GraphQuadReg, Y::AbstractMatrix{Float64}; updateY::Bool=true)
-  if updateY
-    g.scale*sum((Y'*Y) .* g.QL)
-  else
-    #Flip the evaluation if evaluating on X
-    g.scale*sum((Y*Y') .* g.QL)
-  end
+function evaluate(g::GraphQuadReg, Y::AbstractMatrix{Float64})
+  g.scale*sum((Y'*Y) .* g.QL)
+end
+
+function embed(g::GraphQuadReg, yidxs::Array)
+  GraphQuadReg(embed_graph(g.idxgraph, yidxs), g.scale, g.quadamt)
 end
