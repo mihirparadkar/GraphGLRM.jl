@@ -38,4 +38,6 @@ A = [A1 A2]
 A /= vecnorm(A)/√(8)
 ig = IndexGraph(1:4, [(1,3),(2,4)])
 GRG = GGLRM(A, QuadLoss(), QuadReg(0.02), GraphQuadReg(ig, 2., 0.01), 2)
+NGRG = GGLRM(A, QuadLoss(), NonNegConstraint(), NonNegGraphReg(ig, 2.), 2)
 fit!(GRG)
+fit!(NGRG)
