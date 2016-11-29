@@ -16,14 +16,6 @@ end
 #Calculates the whole objective of the GLRM
 function whole_objective(g::GGLRM, XY::Matrix{Float64};
                         X::Matrix{Float64}=g.X, Y::Matrix{Float64}=g.Y)
-  #=
-  yidxs = get_yidxs(g.losses)
-  obj = 0
-  for i in 1:size(g.X,2)
-    for j in g.observed_features[i]
-      @inbounds obj += evaluate(g.losses[j], XY[i,yidxs[j]], g.A[i,j])
-    end
-  end =#
   loss_objective(g, XY) + evaluate(g.rx, X) + evaluate(g.ry, Y)
 end
 
