@@ -2,11 +2,12 @@ module GraphGLRM
 
 using LowRankModels
 using LightGraphs
-using DataArrays
+using DataArrays, DataFrames
 import LowRankModels: prox, prox!,
       evaluate, ObsArray, sort_observations, observations,
       fit!
 import Base.BLAS: axpy!, gemm!
+import Base.Threads
 
 export impute_means, impute_zeros, standardize, standardize!, #Simple imputation for pre-preprocessing
       matrixRegFact, quadgraphRegFact, init_qqreg!,#Closed-form factorizations with regularization
@@ -19,7 +20,7 @@ export impute_means, impute_zeros, standardize, standardize!, #Simple imputation
       GGLRM, add_offset!, equilibrate_variance!,
 
       #The alternating minimization and objective calculation
-      fit!, whole_objective, loss_objective
+      fit!, whole_objective, loss_objective, fit_multithread!
 
 # package code goes here
 include("indexgraph.jl")
@@ -30,5 +31,7 @@ include("gglrm.jl")
 include("offsetscale.jl")
 include("initialize.jl")
 include("fit.jl")
+include("fit_multithread.jl")
+#include("constantstepsize.jl")
 
 end # module

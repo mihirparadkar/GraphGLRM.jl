@@ -2,8 +2,10 @@
 #import LowRankModels: ObsArray, sort_observations, observations
 #export GraphGLRM
 
-type GGLRM <: AbstractGLRM
-  A                            # The data table
+typealias MessyData Union{Matrix, DataMatrix, DataFrame}
+
+type GGLRM{T <: MessyData} <: AbstractGLRM
+  A::T                         # The data table
   losses::Array{Loss,1}        # array of loss functions
   rx::Regularizer              # Regularizer to apply to each row of X
   ry::Regularizer              # Array of regularizers to be applied to each column of Y
@@ -22,7 +24,7 @@ function no_multidim_edges(ry::AbstractGraphReg, losses::Array)
   end
 end
 
-function GGLRM(A::AbstractMatrix, losses::Array, rx::Regularizer, ry::Regularizer, k::Int;
+function GGLRM(A::MessyData, losses::Array, rx::Regularizer, ry::Regularizer, k::Int;
           X::Matrix = randn(k, size(A,1)), Y::Matrix = randn(k,embedding_dim(losses)),
           obs = nothing,                                    # [(i₁,j₁), (i₂,j₂), ... (iₒ,jₒ)]
           observed_features = fill(1:size(A,2), size(A,1)), # [1:n, 1:n, ... 1:n] m times
@@ -68,7 +70,7 @@ function GGLRM(A::AbstractMatrix, losses::Array, rx::Regularizer, ry::Regularize
   glrm
 end
 
-function GGLRM(A::AbstractMatrix, loss::Loss, rx::Regularizer, ry::Regularizer, k::Int; kwargs...)
-  losses = [copy(loss) for i in 1:size(A,2)]
+function GGLRM(A::MessyData, loss::Loss, rx::Regularizer, ry::Regularizer, k::Int; kwargs...)
+  losses = convert(Array{Loss, 1}, [copy(loss) for i in 1:size(A,2)])
   GGLRM(A, losses, rx, ry, k; kwargs...)
 end

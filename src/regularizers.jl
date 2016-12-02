@@ -1,8 +1,3 @@
-## Indicator of k-sparse vectors
-## TODO: integrate upstream
-type KSparseConstraint<:Regularizer
-  k::Int
-end
 function evaluate(r::KSparseConstraint, a::AbstractArray)
     nonzcount = 0
     for ai in a
