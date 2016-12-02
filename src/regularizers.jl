@@ -1,34 +1,3 @@
-function evaluate(r::KSparseConstraint, a::AbstractArray)
-    nonzcount = 0
-    for ai in a
-      if nonzcount == k
-        if ai != 0
-          return Inf
-        end
-      else
-        if ai != 0
-          nonzcount += 1
-        end
-      end
-    end
-    return 0
-end
-function prox(r::KSparseConstraint, u::AbstractArray, alpha::Number)
-  k = r.k
-  ids = selectperm(u, 1:k, by=abs, rev=true)
-  uk = zeros(u)
-  uk[ids] = u[ids]
-  uk
-end
-function prox!(r::KSparseConstraint, u::Array, alpha::Number)
-  k = r.k
-  ids = selectperm(u, 1:k, by=abs, rev=true)
-  vals = u[ids]
-  scale!(u,0)
-  u[ids] = vals
-  u
-end
-
 #Helper function for a regularizer that's actually a constraint
 function inf_or_zero(r::Regularizer, a::AbstractMatrix)
   for i in 1:size(a,2)
