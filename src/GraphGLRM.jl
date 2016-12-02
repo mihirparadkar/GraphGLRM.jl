@@ -16,7 +16,7 @@ export impute_means, impute_zeros, standardize, standardize!, #Simple imputation
       AbstractGraphReg, GraphQuadReg, NonNegGraphReg, matrix, prox, prox!, evaluate,
 
       #The constructors for the GGLRM itself
-      GGLRM, add_offset!,
+      GGLRM, add_offset!, equilibrate_variance!,
 
       #The alternating minimization and objective calculation
       fit!, whole_objective, loss_objective

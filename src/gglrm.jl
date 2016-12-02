@@ -23,10 +23,11 @@ function no_multidim_edges(ry::AbstractGraphReg, losses::Array)
 end
 
 function GGLRM(A::AbstractMatrix, losses::Array, rx::Regularizer, ry::Regularizer, k::Int;
-          X = randn(k, size(A,1)), Y = randn(k,embedding_dim(losses)),
+          X::Matrix = randn(k, size(A,1)), Y::Matrix = randn(k,embedding_dim(losses)),
           obs = nothing,                                    # [(i₁,j₁), (i₂,j₂), ... (iₒ,jₒ)]
           observed_features = fill(1:size(A,2), size(A,1)), # [1:n, 1:n, ... 1:n] m times
-          observed_examples = fill(1:size(A,1), size(A,2))) # [1:m, 1:m, ... 1:m] n times)# [(i₁,j₁), (i₂,j₂), ... (iₒ,jₒ)]
+          observed_examples = fill(1:size(A,1), size(A,2)), # [1:m, 1:m, ... 1:m] n times)# [(i₁,j₁), (i₂,j₂), ... (iₒ,jₒ)]
+          offset::Bool=false, scale::Bool=false)
 
   n, d = size(A)
   if isa(rx, AbstractGraphReg)
@@ -60,10 +61,14 @@ function GGLRM(A::AbstractMatrix, losses::Array, rx::Regularizer, ry::Regularize
   else
     glrm = GGLRM(A,losses,rx,ry,k, sort_observations(obs,size(A)...)..., X,Y)
   end
+
+  if (offset) add_offset!(glrm) end
+  if (scale) equilibrate_variance!(glrm) end
+
   glrm
 end
 
 function GGLRM(A::AbstractMatrix, loss::Loss, rx::Regularizer, ry::Regularizer, k::Int; kwargs...)
   losses = [copy(loss) for i in 1:size(A,2)]
-  GGLRM(A, losses, rx, ry, k, kwargs...)
+  GGLRM(A, losses, rx, ry, k; kwargs...)
 end
