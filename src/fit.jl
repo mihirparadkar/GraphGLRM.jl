@@ -92,6 +92,30 @@ end
 end
 
 #=
+@inline function _fastupdateGradY!(g::AbstractGLRM, XY::Matrix{Float64}, gy::Matrix{Float64})
+  yidxs = get_yidxs(g.losses)
+  scale!(gy, 0)
+
+  #Update the gradient
+  for j in 1:size(g.A, 2)
+    gyj = view(gy, :, yidxs[j])
+    obsex = g.observed_examples[j]
+    @inbounds Aj = convert(Array, g.A[obsex, j])
+    @inbounds XYj = XY[obsex, yidxs[j]]
+    @inbounds Xobs = g.X[:, obsex] #Copying is worth it if it makes the compiler happy
+    grads = grad(g.losses[j], XYj, Aj) #Either a column vector or a column of row vectors
+    #Either it's a Vector or a Matrix, do different things depending on this
+    if isa(grads, Vector)
+      copy!(gyj, sum(Xobs .* grads', 2))
+    else
+      for i in 1:size(Xobs, 2)
+        @inbounds Xobsi = view(Xobs, :, i)
+        gemm!('N','T',1.0, Xobsi, grads[i,:], 1.0, gyj)
+      end
+    end
+  end
+end =#
+#=
 @inline function _threadedupdateGradY!(g::AbstractGLRM, XY::Matrix{Float64}, gy::Matrix{Float64})
   scale!(gy, 0)
 
