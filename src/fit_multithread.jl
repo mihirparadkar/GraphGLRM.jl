@@ -1,11 +1,23 @@
 #Evaluates the loss functions over the matrix XY
-function threaded_loss_objective(g::GGLRM, XY::Matrix{Float64})
+function slow_threaded_loss_objective(g::GGLRM, XY::Matrix{Float64})
   yidxs = get_yidxs(g.losses)
   obj = zeros(Threads.nthreads())
   Threads.@threads for i in 1:size(g.X,2)
     for j in g.observed_features[i]
       @inbounds obj[Threads.threadid()] += evaluate(g.losses[j], XY[i,yidxs[j]], g.A[i,j])
     end
+  end
+  sum(obj)
+end
+
+function threaded_loss_objective(g::GGLRM, XY::Matrix{Float64})
+  yidxs = get_yidxs(g.losses)
+  obj = zeros(Threads.nthreads())
+  for j in 1:length(g.losses)
+    obsex = g.observed_examples[j]
+    @inbounds Aj = convert(Array, g.A[obsex, j])
+    @inbounds XYj = XY[obsex, yidxs[j]]
+    obj[Threads.threadid()] += evaluate(g.losses[j], XYj, Aj)
   end
   sum(obj)
 end
@@ -20,11 +32,12 @@ function _threadedupdateGradX!(g::AbstractGLRM, XY::Matrix{Float64}, gx::Matrix{
     gxi = view(gx, :, i)
     for j in g.observed_features[i]
       curgrad = grad(g.losses[j], XY[i,yidxs[j]], g.A[i,j])
+      @inbounds Yj = view(g.Y, :, yidxs[j])
       if isa(curgrad, Number)
         #gxi[:] += grad(g.losses[j], XY[i,j], g.A[i,j])*view(g.Y, :, j)
-        axpy!(curgrad, view(g.Y, :, yidxs[j]), gxi)
+        axpy!(curgrad, Yj, gxi)
       else
-        gemm!('N','N',1.0,view(g.Y, :, yidxs[j]), curgrad, 1.0, gxi)
+        gemm!('N','N',1.0, Yj, curgrad, 1.0, gxi)
       end
     end
   end
@@ -40,11 +53,12 @@ function _threadedupdateGradY!(g::AbstractGLRM, XY::Matrix{Float64}, gy::Matrix{
     gyj = view(gy, :, yidxs[j])
     for i in g.observed_examples[j]
       curgrad = grad(g.losses[j], XY[i,yidxs[j]], g.A[i,j])
+      @inbounds Xi = view(g.X, :, i)
       if isa(curgrad, Number)
         #gyj[:] += grad(g.losses[j], XY[i,j], g.A[i,j])*view(g.X, :, i)
-        axpy!(curgrad, view(g.X, :, i), gyj)
+        axpy!(curgrad, Xi, gyj)
       else
-        gemm!('N','T',1.0,view(g.X, :, i), curgrad, 1.0, gyj)
+        gemm!('N','T',1.0, Xi, curgrad, 1.0, gyj)
       end
     end
   end
