@@ -22,7 +22,8 @@ function threaded_loss_objective(g::GGLRM, XY::Matrix{Float64})
   sum(obj)
 end
 
-function _threadedupdateGradX!(g::AbstractGLRM, XY::Matrix{Float64}, gx::Matrix{Float64})
+#=
+function _slowthreadedupdateGradX!(g::AbstractGLRM, XY::Matrix{Float64}, gx::Matrix{Float64})
   yidxs = get_yidxs(g.losses)
   #scale the gradient to zero
   scale!(gx,0)
@@ -41,9 +42,44 @@ function _threadedupdateGradX!(g::AbstractGLRM, XY::Matrix{Float64}, gx::Matrix{
       end
     end
   end
+end =#
+
+#Makes some performance optimizations
+#Finds all of the gradients in a column so that the size of the column gradient is consistent
+#as opposed to the row gradient which has column-chunks and whatnot
+@inline function _threadedupdateGradX!(g::AbstractGLRM, XY::Matrix{Float64}, gx::Matrix{Float64})
+  yidxs = get_yidxs(g.losses)
+  scale!(gx,0)
+
+  #Update the gradient, go by column then by row
+  Threads.@threads for j in 1:length(g.losses)
+    #Yj for computing gradient
+    @inbounds Yj = view(g.Y, :, yidxs[j])
+    obsex = g.observed_examples[j]
+
+    #Take whole columns of XY and A and take the gradient of those
+    @inbounds Aj = convert(Array, g.A[obsex, j])
+    @inbounds XYj = XY[obsex, yidxs[j]]
+    grads = grad(g.losses[j], XYj, Aj)
+
+    #Single dimensional losses
+    if isa(grads, Vector)
+      for e in 1:length(obsex)
+        #i = obsex[e], so update that portion of gx
+        @inbounds gxi = view(gx, :, obsex[e])
+        axpy!(grads[e], Yj, gxi)
+      end
+    else
+      for e in 1:length(obsex)
+        @inbounds gxi = view(gx, :, obsex[e])
+        gemm!('N','N',1.0,Yj, grads[e,:], 1.0, gxi)
+      end
+    end
+  end
 end
 
-function _threadedupdateGradY!(g::AbstractGLRM, XY::Matrix{Float64}, gy::Matrix{Float64})
+#=
+function _slowthreadedupdateGradY!(g::AbstractGLRM, XY::Matrix{Float64}, gy::Matrix{Float64})
   yidxs = get_yidxs(g.losses)
   #scale the y gradient to zero
   scale!(gy, 0)
@@ -59,6 +95,35 @@ function _threadedupdateGradY!(g::AbstractGLRM, XY::Matrix{Float64}, gy::Matrix{
         axpy!(curgrad, Xi, gyj)
       else
         gemm!('N','T',1.0, Xi, curgrad, 1.0, gyj)
+      end
+    end
+  end
+end =#
+
+@inline function _threadedupdateGradY!(g::AbstractGLRM, XY::Matrix{Float64}, gy::Matrix{Float64})
+  yidxs = get_yidxs(g.losses)
+  #scale y gradient to zero
+  scale!(gy, 0)
+
+  #Update the gradient
+  Threads.@threads for j in 1:length(g.losses)
+    @inbounds gyj = view(gy, :, yidxs[j])
+    obsex = g.observed_examples[j]
+    #Take whole columns of XY and A and take the gradient of those
+    @inbounds Aj = convert(Array, g.A[obsex, j])
+    @inbounds XYj = XY[obsex, yidxs[j]]
+    grads = grad(g.losses[j], XYj, Aj)
+    #Single dimensional losses
+    if isa(grads, Vector)
+      for e in 1:length(obsex)
+        #i = obsex[e], so use that for Xi
+        @inbounds Xi = view(g.X, :, obsex[e])
+        axpy!(grads[e], Xi, gyj)
+      end
+    else
+      for e in 1:length(obsex)
+        @inbounds Xi = view(g.X, :, obsex[e])
+        gemm!('N','T',1.0, Xi, grads[e,:], 1.0, gyj)
       end
     end
   end

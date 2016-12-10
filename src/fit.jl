@@ -1,6 +1,20 @@
 #import Base.BLAS: axpy!
 #export whole_objective, fit!
 
+#mapreduce is fast in julia, and DiffLosses operate on (u - a)
+#Since evaluate(l, u, a) is the same as evaluate(l, u-a, 0),
+#making an anonymous function to mapreduce with could give some speedup
+function LowRankModels.evaluate(l::DiffLoss, u::Vector{Float64}, a::AbstractVector)
+  losseval = (x::Float64 -> evaluate(l, x, 0.))
+  mapreduce(losseval, +, a-u)
+end
+
+#Similar optimization for the gradient computations
+function LowRankModels.grad(l::DiffLoss, u::Vector{Float64}, a::AbstractVector)
+  lossgrad = (x::Float64,y::Number) -> grad(l, x, y)
+  map(lossgrad, u, a)
+end
+
 #Evaluates the loss functions over the matrix XY
 function slowloss_objective(g::GGLRM, XY::Matrix{Float64})
   yidxs = get_yidxs(g.losses)
@@ -32,29 +46,12 @@ function whole_objective(g::GGLRM, XY::Matrix{Float64};
 end
 
 #=
-function threaded_objective(g::GraphGLRM, XY::Matrix{Float64})
-  tmp = zeros(Threads.nthreads())
-  Threads.@threads for i in 1:size(g.X,1)
-    for j in g.observed_features[i]
-      @inbounds tmp[Threads.threadid()] += evaluate(g.loss, XY[i,j], g.A[i,j])
-    end
-  end
-  obj = sum(tmp)
-  if isa(g.rx, MatrixRegularizer)
-    obj += evaluate(g.rx, g.X, updateY=false) + evaluate(g.ry, g.Y)
-  else
-    obj += evaluate(g.rx, g.X) + evaluate(g.ry, g.Y)
-  end
-  obj
-end
-=#
-
-@inline function _updateGradX!(g::AbstractGLRM, XY::Matrix{Float64}, gx::Matrix{Float64})
+@inline function _slowupdateGradX!(g::AbstractGLRM, XY::Matrix{Float64}, gx::Matrix{Float64})
   yidxs = get_yidxs(g.losses)
   #scale the gradient to zero
   scale!(gx,0)
 
-  #Update the gradient
+  #Update the gradient, go by row and then by column
   for i in 1:size(XY,1)
     gxi = view(gx, :, i)
     for j in g.observed_features[i]
@@ -68,9 +65,44 @@ end
       end
     end
   end
+end =#
+
+#Makes some performance optimizations
+#Finds all of the gradients in a column so that the size of the column gradient is consistent
+#as opposed to the row gradient which has column-chunks and whatnot
+@inline function _updateGradX!(g::AbstractGLRM, XY::Matrix{Float64}, gx::Matrix{Float64})
+  yidxs = get_yidxs(g.losses)
+  scale!(gx,0)
+
+  #Update the gradient, go by column then by row
+  for j in 1:length(g.losses)
+    #Yj for computing gradient
+    @inbounds Yj = view(g.Y, :, yidxs[j])
+    obsex = g.observed_examples[j]
+
+    #Take whole columns of XY and A and take the gradient of those
+    @inbounds Aj = convert(Array, g.A[obsex, j])
+    @inbounds XYj = XY[obsex, yidxs[j]]
+    grads = grad(g.losses[j], XYj, Aj)
+
+    #Single dimensional losses
+    if isa(grads, Vector)
+      for e in 1:length(obsex)
+        #i = obsex[e], so update that portion of gx
+        @inbounds gxi = view(gx, :, obsex[e])
+        axpy!(grads[e], Yj, gxi)
+      end
+    else
+      for e in 1:length(obsex)
+        @inbounds gxi = view(gx, :, obsex[e])
+        gemm!('N','N',1.0,Yj, grads[e,:], 1.0, gxi)
+      end
+    end
+  end
 end
 
-@inline function _updateGradY!(g::AbstractGLRM, XY::Matrix{Float64}, gy::Matrix{Float64})
+#=
+@inline function _slowupdateGradY!(g::AbstractGLRM, XY::Matrix{Float64}, gy::Matrix{Float64})
   yidxs = get_yidxs(g.losses)
   #scale the y gradient to zero
   scale!(gy, 0)
@@ -89,55 +121,36 @@ end
       end
     end
   end
-end
+end =#
 
-#=
-@inline function _fastupdateGradY!(g::AbstractGLRM, XY::Matrix{Float64}, gy::Matrix{Float64})
+@inline function _updateGradY!(g::AbstractGLRM, XY::Matrix{Float64}, gy::Matrix{Float64})
   yidxs = get_yidxs(g.losses)
+  #scale y gradient to zero
   scale!(gy, 0)
 
   #Update the gradient
-  for j in 1:size(g.A, 2)
-    gyj = view(gy, :, yidxs[j])
+  for j in 1:length(g.losses)
+    @inbounds gyj = view(gy, :, yidxs[j])
     obsex = g.observed_examples[j]
+    #Take whole columns of XY and A and take the gradient of those
     @inbounds Aj = convert(Array, g.A[obsex, j])
     @inbounds XYj = XY[obsex, yidxs[j]]
-    @inbounds Xobs = g.X[:, obsex] #Copying is worth it if it makes the compiler happy
-    grads = grad(g.losses[j], XYj, Aj) #Either a column vector or a column of row vectors
-    #Either it's a Vector or a Matrix, do different things depending on this
+    grads = grad(g.losses[j], XYj, Aj)
+    #Single dimensional losses
     if isa(grads, Vector)
-      copy!(gyj, sum(Xobs .* grads', 2))
+      for e in 1:length(obsex)
+        #i = obsex[e], so use that for Xi
+        @inbounds Xi = view(g.X, :, obsex[e])
+        axpy!(grads[e], Xi, gyj)
+      end
     else
-      for i in 1:size(Xobs, 2)
-        @inbounds Xobsi = view(Xobs, :, i)
-        gemm!('N','T',1.0, Xobsi, grads[i,:], 1.0, gyj)
+      for e in 1:length(obsex)
+        @inbounds Xi = view(g.X, :, obsex[e])
+        gemm!('N','T',1.0, Xi, grads[e,:], 1.0, gyj)
       end
     end
   end
-end =#
-#=
-@inline function _threadedupdateGradY!(g::AbstractGLRM, XY::Matrix{Float64}, gy::Matrix{Float64})
-  scale!(gy, 0)
-
-  #Update the gradient
-  Threads.@threads for j in 1:size(g.Y,2)
-    for i in g.observed_examples[j]
-      @inbounds gy[:,j] += grad(g.loss, XY[i,j], g.A[i,j])*g.X[i,:]
-    end
-  end
 end
-
-@inline function _threadedupdateGradX!(g::AbstractGLRM, XY::Matrix{Float64}, gx::Matrix{Float64})
-  scale!(gx,0)
-
-  #Update the gradient
-  Threads.@threads for i in 1:size(XY,1)
-    for j in g.observed_features[i]
-      @inbounds gx[i,:] += grad(g.loss, XY[i,j], g.A[i,j])*view(g.Y, :, j)
-    end
-  end
-end
-=#
 
 #Does a line search for the step size for X, returns the new step size
 @inline function _proxStepX!(g::AbstractGLRM, params::ProxGradParams,
