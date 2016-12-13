@@ -1,6 +1,15 @@
 #import Base.BLAS: axpy!
 #export whole_objective, fit!
 
+#=
+function LowRankModels.evaluate(l::Loss, u::Vector{Float64}, a::AbstractVector)
+  losseval = (x::Float64, y::Number) -> evaluate(l, x, y)
+  mapped = zeros(u)
+  map!(losseval, mapped, u, a)
+  reduce(+, mapped)
+end
+=#
+
 #mapreduce is fast in julia, and DiffLosses operate on (u - a)
 #Since evaluate(l, u, a) is the same as evaluate(l, u-a, 0),
 #making an anonymous function to mapreduce with could give some speedup
