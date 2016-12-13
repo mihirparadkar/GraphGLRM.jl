@@ -13,7 +13,7 @@ end
 function threaded_loss_objective(g::GGLRM, XY::Matrix{Float64})
   yidxs = get_yidxs(g.losses)
   obj = zeros(Threads.nthreads())
-  for j in 1:length(g.losses)
+  Threads.@threads for j in 1:length(g.losses)
     obsex = g.observed_examples[j]
     @inbounds Aj = convert(Array, g.A[obsex, j])
     @inbounds XYj = XY[obsex, yidxs[j]]
