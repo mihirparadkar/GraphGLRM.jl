@@ -185,7 +185,7 @@ end
       break
     else #Try again with smaller step-size
       copy!(newX, g.X)
-      αx *= 0.8 #0.7
+      αx *= 0.9 #0.7
       if αx < params.min_stepsize
         αx = params.min_stepsize * 1.1
         break
@@ -217,7 +217,7 @@ end
       break
     else #Try again with smaller step-size
       copy!(newY, g.Y)
-      αy *= 0.8 #0.7
+      αy *= 0.9 #0.7
       if αy < params.min_stepsize
         αy = params.min_stepsize * 1.1
         break
