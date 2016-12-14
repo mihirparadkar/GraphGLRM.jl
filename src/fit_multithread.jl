@@ -250,4 +250,5 @@ function fit_multithread!(g::GGLRM,
         break
     end
   end #For
+  ch
 end

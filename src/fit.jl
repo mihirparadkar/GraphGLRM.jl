@@ -181,7 +181,7 @@ end
     #newobj = threaded_objective(g, newXY)
     if newobj < obj
       copy!(g.X, newX)
-      αx *= (1.05)
+      αx *= 1.1#(1.05)
       break
     else #Try again with smaller step-size
       copy!(newX, g.X)
@@ -213,7 +213,7 @@ end
     #newobj = threaded_objective(g, newXY)
     if newobj < obj
       copy!(g.Y, newY)
-      αy *= 1.05
+      αy *= 1.1#1.05
       break
     else #Try again with smaller step-size
       copy!(newY, g.Y)
@@ -282,4 +282,5 @@ function LowRankModels.fit!(g::GGLRM,
         break
     end
   end #For
+  ch
 end
