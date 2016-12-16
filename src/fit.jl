@@ -1,15 +1,19 @@
 #import Base.BLAS: axpy!
 #export whole_objective, fit!
 
-#=
-function LowRankModels.evaluate(l::Loss, u::Vector{Float64}, a::AbstractVector)
+typealias SingleDimLoss Union{LowRankModels.DiffLoss, LowRankModels.ClassificationLoss}
+
+#The DiffLosses and ClassificationLosses comprise the single-dimensional losses
+#Mapreduce is very fast so this speeds up the evaluation a bunch
+function LowRankModels.evaluate(l::SingleDimLoss,
+                                u::Vector{Float64}, a::AbstractVector)
   losseval = (x::Float64, y::Number) -> evaluate(l, x, y)
   mapped = zeros(u)
   map!(losseval, mapped, u, a)
   reduce(+, mapped)
 end
-=#
 
+#=
 #mapreduce is fast in julia, and DiffLosses operate on (u - a)
 #Since evaluate(l, u, a) is the same as evaluate(l, u-a, 0),
 #making an anonymous function to mapreduce with could give some speedup
@@ -17,11 +21,13 @@ function LowRankModels.evaluate(l::DiffLoss, u::Vector{Float64}, a::AbstractVect
   losseval = (x::Float64 -> evaluate(l, x, 0.))
   mapreduce(losseval, +, a-u)
 end
+=#
 
 #Similar optimization for the gradient computations
 function LowRankModels.grad(l::DiffLoss, u::Vector{Float64}, a::AbstractVector)
   lossgrad = (x::Float64,y::Number) -> grad(l, x, y)
-  map(lossgrad, u, a)
+  mapped = zeros(u)
+  map!(lossgrad, mapped, u, a)
 end
 
 #Evaluates the loss functions over the matrix XY
