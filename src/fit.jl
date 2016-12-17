@@ -1,10 +1,9 @@
-#import Base.BLAS: axpy!
-#export whole_objective, fit!
-
+#Convenience type for any single-dimensional loss (because they work on booleans, real, and periodic domain)
 typealias SingleDimLoss Union{LowRankModels.DiffLoss, LowRankModels.ClassificationLoss}
 
 #The DiffLosses and ClassificationLosses comprise the single-dimensional losses
-#Mapreduce is very fast so this speeds up the evaluation a bunch
+#map! and reduce are very fast, so using these instead of the naive loop
+#speed up the computations very much
 function LowRankModels.evaluate(l::SingleDimLoss,
                                 u::Vector{Float64}, a::AbstractVector)
   losseval = (x::Float64, y::Number) -> evaluate(l, x, y)
@@ -13,18 +12,8 @@ function LowRankModels.evaluate(l::SingleDimLoss,
   reduce(+, mapped)
 end
 
-#=
-#mapreduce is fast in julia, and DiffLosses operate on (u - a)
-#Since evaluate(l, u, a) is the same as evaluate(l, u-a, 0),
-#making an anonymous function to mapreduce with could give some speedup
-function LowRankModels.evaluate(l::DiffLoss, u::Vector{Float64}, a::AbstractVector)
-  losseval = (x::Float64 -> evaluate(l, x, 0.))
-  mapreduce(losseval, +, a-u)
-end
-=#
-
 #Similar optimization for the gradient computations
-function LowRankModels.grad(l::DiffLoss, u::Vector{Float64}, a::AbstractVector)
+function LowRankModels.grad(l::SingleDimLoss, u::Vector{Float64}, a::AbstractVector)
   lossgrad = (x::Float64,y::Number) -> grad(l, x, y)
   mapped = zeros(u)
   map!(lossgrad, mapped, u, a)
@@ -60,28 +49,6 @@ function whole_objective(g::GGLRM, XY::Matrix{Float64};
   loss_objective(g, XY) + evaluate(g.rx, X) + evaluate(g.ry, Y)
 end
 
-#=
-@inline function _slowupdateGradX!(g::AbstractGLRM, XY::Matrix{Float64}, gx::Matrix{Float64})
-  yidxs = get_yidxs(g.losses)
-  #scale the gradient to zero
-  scale!(gx,0)
-
-  #Update the gradient, go by row and then by column
-  for i in 1:size(XY,1)
-    gxi = view(gx, :, i)
-    for j in g.observed_features[i]
-      curgrad = grad(g.losses[j], XY[i,yidxs[j]], g.A[i,j])
-      @inbounds Yj = view(g.Y, :, yidxs[j])
-      if isa(curgrad, Number)
-        #gxi[:] += grad(g.losses[j], XY[i,j], g.A[i,j])*view(g.Y, :, j)
-        axpy!(curgrad, Yj, gxi)
-      else
-        gemm!('N','N',1.0,Yj, curgrad, 1.0, gxi)
-      end
-    end
-  end
-end =#
-
 #Makes some performance optimizations
 #Finds all of the gradients in a column so that the size of the column gradient is consistent
 #as opposed to the row gradient which has column-chunks and whatnot
@@ -115,28 +82,6 @@ end =#
     end
   end
 end
-
-#=
-@inline function _slowupdateGradY!(g::AbstractGLRM, XY::Matrix{Float64}, gy::Matrix{Float64})
-  yidxs = get_yidxs(g.losses)
-  #scale the y gradient to zero
-  scale!(gy, 0)
-
-  #Update the gradient
-  for j in 1:size(g.A,2)
-    gyj = view(gy, :, yidxs[j])
-    for i in g.observed_examples[j]
-      curgrad = grad(g.losses[j], XY[i,yidxs[j]], g.A[i,j])
-      @inbounds Xi = view(g.X, :, i)
-      if isa(curgrad, Number)
-        #gyj[:] += grad(g.losses[j], XY[i,j], g.A[i,j])*view(g.X, :, i)
-        axpy!(curgrad, Xi, gyj)
-      else
-        gemm!('N','T',1.0, Xi, curgrad, 1.0, gyj)
-      end
-    end
-  end
-end =#
 
 @inline function _updateGradY!(g::AbstractGLRM, XY::Matrix{Float64}, gy::Matrix{Float64})
   yidxs = get_yidxs(g.losses)
@@ -235,7 +180,8 @@ end
 
 function LowRankModels.fit!(g::GGLRM,
                       params::ProxGradParams=ProxGradParams(),
-                      ch::ConvergenceHistory=ConvergenceHistory("ProxGradGLRM"))
+                      ch::ConvergenceHistory=ConvergenceHistory("ProxGradGLRM"),
+                      verbose=true)
   X,Y = g.X, g.Y
   A = g.A
   losses, rx, ry = g.losses, g.rx, g.ry
@@ -261,6 +207,7 @@ function LowRankModels.fit!(g::GGLRM,
   gx = zeros(X)
   gy = zeros(Y)
 
+  if verbose println("Fitting GGLRM") end
   for t in 1:params.max_iter
     #X update-----------------------------------------------------------------
     #_threadedupdateGradX!(g,XY,gx)
@@ -275,7 +222,9 @@ function LowRankModels.fit!(g::GGLRM,
     αy, objy = _proxStepY!(g, params, newY, gy, XY, newXY, αy)
     At_mul_B!(XY, X, Y) #Get the new XY matrix for objective
     if t % 10 == 0
-      println("Iteration $t, objective value: $(objy + evaluate(rx, g.X))")
+      if verbose
+        println("Iteration $t, objective value: $(objy + evaluate(rx, g.X))")
+      end
     end
     #Update convergence history
     obj = objy + evaluate(rx, g.X)
@@ -285,7 +234,10 @@ function LowRankModels.fit!(g::GGLRM,
     #Check stopping criterion
     obj_decrease = ch.objective[end-1] - obj
     if t>10 && (obj_decrease < scaled_abs_tol || obj_decrease/obj < params.rel_tol)
-        break
+      if verbose
+        println("Iteration $t, objective value: $obj")
+      end
+      break
     end
   end #For
   ch

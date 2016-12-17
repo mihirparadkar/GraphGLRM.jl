@@ -1,7 +1,3 @@
-#using LowRankModels
-#import LowRankModels: ObsArray, sort_observations, observations
-#export GraphGLRM
-
 typealias MessyData Union{Matrix, DataMatrix, DataFrame}
 
 type GGLRM{T <: MessyData} <: AbstractGLRM

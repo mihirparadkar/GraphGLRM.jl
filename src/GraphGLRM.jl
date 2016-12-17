@@ -9,8 +9,8 @@ import LowRankModels: prox, prox!,
 import Base.BLAS: axpy!, gemm!
 import Base.Threads
 
-export impute_means, impute_zeros, standardize, standardize!, #Simple imputation for pre-preprocessing
-      matrixRegFact, quadgraphRegFact, init_qqreg!,#Closed-form factorizations with regularization
+export #impute_means, impute_zeros, standardize, standardize!, #Simple imputation for pre-preprocessing
+      #matrixRegFact, quadgraphRegFact, init_qqreg!,#Closed-form factorizations with regularization
       IndexGraph, #The data structure for easily initializing a GraphQuadReg
 
       #The regularizer
@@ -29,7 +29,7 @@ include("nonneggraphreg.jl")
 include("regularizers.jl")
 include("gglrm.jl")
 include("offsetscale.jl")
-include("initialize.jl")
+#include("initialize.jl")
 include("fit.jl")
 include("fit_multithread.jl")
 #include("constantstepsize.jl")

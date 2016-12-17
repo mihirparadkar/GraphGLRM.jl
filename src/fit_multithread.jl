@@ -22,28 +22,6 @@ function threaded_loss_objective(g::GGLRM, XY::Matrix{Float64})
   sum(obj)
 end
 
-#=
-function _slowthreadedupdateGradX!(g::AbstractGLRM, XY::Matrix{Float64}, gx::Matrix{Float64})
-  yidxs = get_yidxs(g.losses)
-  #scale the gradient to zero
-  scale!(gx,0)
-
-  #Update the gradient
-  Threads.@threads for i in 1:size(XY,1)
-    gxi = view(gx, :, i)
-    for j in g.observed_features[i]
-      curgrad = grad(g.losses[j], XY[i,yidxs[j]], g.A[i,j])
-      @inbounds Yj = view(g.Y, :, yidxs[j])
-      if isa(curgrad, Number)
-        #gxi[:] += grad(g.losses[j], XY[i,j], g.A[i,j])*view(g.Y, :, j)
-        axpy!(curgrad, Yj, gxi)
-      else
-        gemm!('N','N',1.0, Yj, curgrad, 1.0, gxi)
-      end
-    end
-  end
-end =#
-
 #Makes some performance optimizations
 #Finds all of the gradients in a column so that the size of the column gradient is consistent
 #as opposed to the row gradient which has column-chunks and whatnot
@@ -77,28 +55,6 @@ end =#
     end
   end
 end
-
-#=
-function _slowthreadedupdateGradY!(g::AbstractGLRM, XY::Matrix{Float64}, gy::Matrix{Float64})
-  yidxs = get_yidxs(g.losses)
-  #scale the y gradient to zero
-  scale!(gy, 0)
-
-  #Update the gradient
-  Threads.@threads for j in 1:size(g.A,2)
-    gyj = view(gy, :, yidxs[j])
-    for i in g.observed_examples[j]
-      curgrad = grad(g.losses[j], XY[i,yidxs[j]], g.A[i,j])
-      @inbounds Xi = view(g.X, :, i)
-      if isa(curgrad, Number)
-        #gyj[:] += grad(g.losses[j], XY[i,j], g.A[i,j])*view(g.X, :, i)
-        axpy!(curgrad, Xi, gyj)
-      else
-        gemm!('N','T',1.0, Xi, curgrad, 1.0, gyj)
-      end
-    end
-  end
-end =#
 
 @inline function _threadedupdateGradY!(g::AbstractGLRM, XY::Matrix{Float64}, gy::Matrix{Float64})
   yidxs = get_yidxs(g.losses)
@@ -197,7 +153,8 @@ end
 
 function fit_multithread!(g::GGLRM,
                       params::ProxGradParams=ProxGradParams(),
-                      ch::ConvergenceHistory=ConvergenceHistory("ProxGradGLRM"))
+                      ch::ConvergenceHistory=ConvergenceHistory("ProxGradGLRM"),
+                      verbose=true)
   X,Y = g.X, g.Y
   A = g.A
   losses, rx, ry = g.losses, g.rx, g.ry
@@ -223,6 +180,7 @@ function fit_multithread!(g::GGLRM,
   gx = zeros(X)
   gy = zeros(Y)
 
+  if verbose println("Fitting GGLRM") end
   for t in 1:params.max_iter
     #X update-----------------------------------------------------------------
     #_threadedupdateGradX!(g,XY,gx)
@@ -237,7 +195,9 @@ function fit_multithread!(g::GGLRM,
     αy, objy = _threadedproxStepY!(g, params, newY, gy, XY, newXY, αy)
     At_mul_B!(XY, X, Y) #Get the new XY matrix for objective
     if t % 10 == 0
-      println("Iteration $t, objective value: $(objy + evaluate(rx, g.X))")
+      if verbose
+        println("Iteration $t, objective value: $(objy + evaluate(rx, g.X))")
+      end
     end
     #Update convergence history
     obj = objy + evaluate(rx, g.X)
@@ -247,7 +207,10 @@ function fit_multithread!(g::GGLRM,
     #Check stopping criterion
     obj_decrease = ch.objective[end-1] - obj
     if t>10 && (obj_decrease < scaled_abs_tol || obj_decrease/obj < params.rel_tol)
-        break
+      if verbose
+        println("Iteration $t, objective value: $obj")
+      end
+      break
     end
   end #For
   ch
