@@ -1,85 +1,29 @@
-#Evaluates the loss function over all the observed values.
-function threaded_loss_objective{T <: AbstractMatrix{Float64}}(g::GGLRM, XY::T)
+function reconstruct_obs!(g::GGLRM, XY::SparseMatrixCSC{Float64}; X = g.X, Y = g.Y)
   yidxs = get_yidxs(g.losses)
-  obj = zeros(Threads.nthreads())
-  Threads.@threads for j in 1:length(g.losses)
-    obsex = g.observed_examples[j]
-    #A may be a DataFrame or DataArray, but native Arrays are fastest
-    @inbounds Aj = convert(Array, g.A[obsex, j])
-    #To allow the sparse version to work as well
-    @inbounds XYj = convert(Array, XY[obsex, yidxs[j]])
-    obj[Threads.threadid()] += evaluate(g.losses[j], XYj, Aj)
-  end
-  sum(obj)
-end
-
-#Makes some performance optimizations
-#Finds all of the gradients in a column so that the size of the column gradient is consistent
-#as opposed to the row gradient which has column-chunks and whatnot
-@inline function _threadedupdateGradX!{T <: AbstractMatrix{Float64}}(g::AbstractGLRM, XY::T, gx::Matrix{Float64})
-  yidxs = get_yidxs(g.losses)
-  scale!(gx,0)
-
-  #Update the gradient, go by column then by row
-  Threads.@threads for j in 1:length(g.losses)
-    #Yj for computing gradient
-    @inbounds Yj = view(g.Y, :, yidxs[j])
-    obsex = g.observed_examples[j]
-
-    #Take whole columns of XY and A and take the gradient of those
-    @inbounds Aj = convert(Array, g.A[obsex, j])
-    @inbounds XYj = convert(Array, XY[obsex, yidxs[j]])
-    grads = grad(g.losses[j], XYj, Aj)
-
-    #Single dimensional losses
-    if isa(grads, Vector)
-      for e in 1:length(obsex)
-        #i = obsex[e], so update that portion of gx
-        @inbounds gxi = view(gx, :, obsex[e])
-        axpy!(grads[e], Yj, gxi)
-      end
-    else
-      for e in 1:length(obsex)
-        @inbounds gxi = view(gx, :, obsex[e])
-        gemm!('N','N',1.0,Yj, grads[e,:], 1.0, gxi)
+  obsex = g.observed_examples
+  for j in 1:length(g.losses)
+    @inbounds Yj = view(Y, :, yidxs[j])
+    for i in obsex[j]
+      Xi = view(X, :, i)
+      if isa(yidxs[j], Number)
+        XY[i, yidxs[j]] = (Xi'Yj)[1]
+      else
+        XY[i, yidxs[j]] = Xi'Yj
       end
     end
   end
 end
 
-@inline function _threadedupdateGradY!{T <: AbstractMatrix{Float64}}(g::AbstractGLRM, XY::T, gy::Matrix{Float64})
-  yidxs = get_yidxs(g.losses)
-  #scale y gradient to zero
-  scale!(gy, 0)
-
-  #Update the gradient
-  Threads.@threads for j in 1:length(g.losses)
-    @inbounds gyj = view(gy, :, yidxs[j])
-    obsex = g.observed_examples[j]
-    #Take whole columns of XY and A and take the gradient of those
-    @inbounds Aj = convert(Array, g.A[obsex, j])
-    @inbounds XYj = convert(Array, XY[obsex, yidxs[j]])
-    grads = grad(g.losses[j], XYj, Aj)
-    #Single dimensional losses
-    if isa(grads, Vector)
-      for e in 1:length(obsex)
-        #i = obsex[e], so use that for Xi
-        @inbounds Xi = view(g.X, :, obsex[e])
-        axpy!(grads[e], Xi, gyj)
-      end
-    else
-      for e in 1:length(obsex)
-        @inbounds Xi = view(g.X, :, obsex[e])
-        gemm!('N','T',1.0, Xi, grads[e,:], 1.0, gyj)
-      end
-    end
-  end
+function reconstruct_obs(g::GGLRM)
+  XY = spzeros(size(g.X,2), size(g.Y,2))
+  reconstruct_obs!(g, XY)
+  XY
 end
 
 #Does a line search for the step size for X, returns the new step size
 @inline function _threadedproxStepX!(g::AbstractGLRM, params::ProxGradParams,
                             newX::Matrix{Float64}, gx::Matrix{Float64},
-                            XY::Matrix{Float64}, newXY::Matrix{Float64},
+                            XY::SparseMatrixCSC{Float64}, newXY::SparseMatrixCSC{Float64},
                             αx::Number)
   #l = 1.5
   l = maximum(map(length, g.observed_features))+1#(mapreduce(length,+,g.observed_features) + 1)
@@ -91,7 +35,7 @@ end
 
     axpy!(-stepsize, gx, newX)
     prox!(g.rx, newX, stepsize)
-    At_mul_B!(newXY, newX, g.Y)
+    reconstruct_obs!(g, newXY, X=newX)#At_mul_B!(newXY, newX, g.Y)
     newobj = threaded_loss_objective(g, newXY) + evaluate(g.rx, newX)
     #newobj = threaded_objective(g, newXY)
     if newobj < obj
@@ -112,7 +56,7 @@ end
 
 @inline function _threadedproxStepY!(g::AbstractGLRM, params::ProxGradParams,
                               newY::Matrix{Float64}, gy::Matrix{Float64},
-                              XY::Matrix{Float64}, newXY::Matrix{Float64},
+                              XY::SparseMatrixCSC{Float64}, newXY::SparseMatrixCSC{Float64},
                               αy::Number)
   #l = 1.5
   l = maximum(map(length, g.observed_examples)) + 1#(mapreduce(length,+,g.observed_features) + 1)
@@ -123,7 +67,7 @@ end
     stepsize = αy/l
     axpy!(-stepsize, gy, newY)
     prox!(g.ry, newY, stepsize)
-    At_mul_B!(newXY, g.X, newY)
+    reconstruct_obs!(g, newXY, Y=newY)#At_mul_B!(newXY, g.X, newY)
     newobj = threaded_loss_objective(g, newXY) + evaluate(g.ry, newY)
     #newobj = threaded_objective(g, newXY)
     if newobj < obj
@@ -142,16 +86,18 @@ end
   αy, newobj
 end
 
-function fit_multithread!(g::GGLRM,
+function fit_sparse!(g::GGLRM,
                       params::ProxGradParams=ProxGradParams(),
                       ch::ConvergenceHistory=ConvergenceHistory("ProxGradGLRM"),
                       verbose=true)
   X,Y = g.X, g.Y
   A = g.A
   losses, rx, ry = g.losses, g.rx, g.ry
+  yidxs = get_yidxs(g.losses)
 
   #Initialize X*Y
-  XY = At_mul_B(X,Y)
+  XY = spzeros(size(X,2), size(Y,2))
+  reconstruct_obs!(g, XY)
 
   tm = 0
   update_ch!(ch, tm, whole_objective(g,XY))
@@ -178,13 +124,13 @@ function fit_multithread!(g::GGLRM,
     _threadedupdateGradX!(g,XY,gx)
     #Take a prox step with line search
     αx, objx = _threadedproxStepX!(g, params, newX, gx, XY, newXY, αx)
-    At_mul_B!(XY, X, Y) #Get the new XY matrix for objective
+    reconstruct_obs!(g, XY) #Get the new XY matrix for objective
 
     #Y Update---------------------------------------------------------------
     #_threadedupdateGradY!(g,XY,gy)
     _threadedupdateGradY!(g,XY,gy)
     αy, objy = _threadedproxStepY!(g, params, newY, gy, XY, newXY, αy)
-    At_mul_B!(XY, X, Y) #Get the new XY matrix for objective
+    reconstruct_obs!(g, XY) #Get the new XY matrix for objective
     if t % 10 == 0
       if verbose
         println("Iteration $t, objective value: $(objy + evaluate(rx, g.X))")

@@ -5,6 +5,7 @@ using Base.Test
 include("realvalueglrm.jl")
 include("classificationglrm.jl")
 include("multidimglrm.jl")
+include("sparseglrm.jl")
 
 #Graph regularizer
 A1 = randn(6,2) * diagm([128, 16])

@@ -1,4 +1,4 @@
-typealias MessyData Union{Matrix, DataMatrix, DataFrame}
+typealias MessyData Union{AbstractMatrix, DataFrame}
 
 type GGLRM{T <: MessyData} <: AbstractGLRM
   A::T                         # The data table

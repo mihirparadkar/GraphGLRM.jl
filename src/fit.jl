@@ -31,20 +31,20 @@ function slowloss_objective(g::GGLRM, XY::Matrix{Float64})
   obj
 end
 
-function loss_objective(g::GGLRM, XY::Matrix{Float64})
+function loss_objective{T <: AbstractMatrix{Float64}}(g::GGLRM, XY::T)
   yidxs = get_yidxs(g.losses)
   obj = 0
   for j in 1:length(g.losses)
     obsex = g.observed_examples[j]
     @inbounds Aj = convert(Array, g.A[obsex, j])
-    @inbounds XYj = XY[obsex, yidxs[j]]
+    @inbounds XYj = convert(Array, XY[obsex, yidxs[j]])
     obj += evaluate(g.losses[j], XYj, Aj)
   end
   obj
 end
 
 #Calculates the whole objective of the GLRM
-function whole_objective(g::GGLRM, XY::Matrix{Float64};
+function whole_objective{T <: AbstractMatrix{Float64}}(g::GGLRM, XY::T;
                         X::Matrix{Float64}=g.X, Y::Matrix{Float64}=g.Y)
   loss_objective(g, XY) + evaluate(g.rx, X) + evaluate(g.ry, Y)
 end
