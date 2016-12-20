@@ -25,7 +25,8 @@ function GGLRM(A::MessyData, losses::Array, rx::Regularizer, ry::Regularizer, k:
           obs = nothing,                                    # [(i₁,j₁), (i₂,j₂), ... (iₒ,jₒ)]
           observed_features = fill(1:size(A,2), size(A,1)), # [1:n, 1:n, ... 1:n] m times
           observed_examples = fill(1:size(A,1), size(A,2)), # [1:m, 1:m, ... 1:m] n times)# [(i₁,j₁), (i₂,j₂), ... (iₒ,jₒ)]
-          offset::Bool=false, scale::Bool=false)
+          offset::Bool=false, scale::Bool=false,
+          sparse_na::Bool=true)
 
   n, d = size(A)
   if isa(rx, AbstractGraphReg)
@@ -53,6 +54,10 @@ function GGLRM(A::MessyData, losses::Array, rx::Regularizer, ry::Regularizer, k:
     error("Y must be of size (k,d) where d is the sum of the embedding dimensions of all the losses. \n(1 for real-valued losses, and the number of categories for categorical losses).")
   end
 
+  # Determine observed entries of data
+  if obs==nothing && sparse_na && isa(A,SparseMatrixCSC)
+    obs = [zip(findn(A)...)...] # observed indices (list of tuples)
+  end
   if obs==nothing # if no specified array of tuples, use what was explicitly passed in or the defaults (all)
   # println("no obs given, using observed_features and observed_examples")
     glrm = GGLRM(A,losses,rx,ry,k, observed_features, observed_examples, X,Y)

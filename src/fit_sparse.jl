@@ -4,11 +4,11 @@ function reconstruct_obs!(g::GGLRM, XY::SparseMatrixCSC{Float64}; X = g.X, Y = g
   for j in 1:length(g.losses)
     @inbounds Yj = view(Y, :, yidxs[j])
     for i in obsex[j]
-      Xi = view(X, :, i)
+      @inbounds Xi = view(X, :, i)
       if isa(yidxs[j], Number)
-        XY[i, yidxs[j]] = (Xi'Yj)[1]
+        @inbounds XY[i, yidxs[j]] = (Xi'Yj)[1]
       else
-        XY[i, yidxs[j]] = Xi'Yj
+        @inbounds XY[i, yidxs[j]] = Xi'Yj
       end
     end
   end
