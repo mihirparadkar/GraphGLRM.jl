@@ -1,5 +1,5 @@
 #Convenience type for any single-dimensional loss (because they work on booleans, real, and periodic domain)
-typealias SingleDimLoss Union{LowRankModels.DiffLoss, LowRankModels.ClassificationLoss}
+typealias SingleDimLoss Union{LowRankModels.DiffLoss, LowRankModels.ClassificationLoss, LowRankModels.OrdinalHingeLoss}
 
 #The DiffLosses and ClassificationLosses comprise the single-dimensional losses
 #map! and reduce are very fast, so using these instead of the naive loop

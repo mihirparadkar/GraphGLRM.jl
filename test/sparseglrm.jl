@@ -9,6 +9,6 @@ gg = GGLRM(A, l, rx, ry, 10, obs=obs)
 ggs = GGLRM(A, l, rx, ry, 10, obs=obs)
 
 fit!(gg); fit_sparse!(ggs);
-ggobj = whole_objective(gg, reconstruct_obs(gg))
-ggsobj = whole_objective(ggs, reconstruct_obs(ggs))
+ggobj = whole_objective(gg, gg.X'gg.Y)
+ggsobj = whole_objective(ggs, ggs.X'ggs.Y)
 @test_approx_eq_eps(ggobj, ggsobj, 0.1*length(A))

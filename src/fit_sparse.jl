@@ -1,34 +1,121 @@
-function reconstruct_obs!(g::GGLRM, XY::SparseMatrixCSC{Float64}; X = g.X, Y = g.Y)
+function reconstruct_obs!(g::GGLRM, XY::Array{VecOrMat{Float64}}; X = g.X, Y = g.Y)
   yidxs = get_yidxs(g.losses)
   obsex = g.observed_examples
   for j in 1:length(g.losses)
-    @inbounds Yj = view(Y, :, yidxs[j])
-    for i in obsex[j]
-      @inbounds Xi = view(X, :, i)
-      if isa(yidxs[j], Number)
-        @inbounds XY[i, yidxs[j]] = (Xi'Yj)[1]
-      else
-        @inbounds XY[i, yidxs[j]] = Xi'Yj
+    @inbounds Yj = Y[:,yidxs[j]]
+    @inbounds Xisj = X[:, obsex[j]]
+    #Is a column of the XY matrix proper
+    At_mul_B!(XY[j], Xisj, Yj)
+  end
+end
+
+function reconstruct_obs(g::GGLRM)
+  yidxs = get_yidxs(g.losses)
+  obsex = g.observed_examples
+  XY = VecOrMat{Float64}[zeros(length(obsex[j]), length(yidxs[j]))
+                                        for j in 1:length(obsex)]
+  for j in 1:length(XY)
+    if size(XY[j], 2) == 1
+      XY[j] = vec(XY[j])
+    end
+  end
+  reconstruct_obs!(g, XY)
+  XY
+end
+
+#Evaluates the loss function over all the observed values, optimized for few observations
+function sparse_loss_objective(g::GGLRM, XY::Array{VecOrMat{Float64}})
+  yidxs = get_yidxs(g.losses)
+  obj = zeros(Threads.nthreads())
+  Threads.@threads for j in 1:length(g.losses)
+    obsex = g.observed_examples[j]
+    #A may be a DataFrame or DataArray, but native Arrays are fastest
+    @inbounds Aj = convert(Array, g.A[obsex, j])
+    #This assumes a reconstruction over only the observations as done in reconstruct_obs!
+    @inbounds XYj = XY[j]
+    obj[Threads.threadid()] += evaluate(g.losses[j], XYj, Aj)
+  end
+  sum(obj)
+end
+
+#Calculates the whole objective of the GLRM
+function sparse_whole_objective(g::GGLRM, XY::Array{VecOrMat{Float64}};
+                        X::Matrix{Float64}=g.X, Y::Matrix{Float64}=g.Y)
+  sparse_loss_objective(g, XY) + evaluate(g.rx, X) + evaluate(g.ry, Y)
+end
+
+#Makes some performance optimizations
+#Finds all of the gradients in a column so that the size of the column gradient is consistent
+#as opposed to the row gradient which has column-chunks and whatnot
+@inline function _threadedupdateGradX!(g::AbstractGLRM, XY::Array{VecOrMat{Float64}}, gx::Matrix{Float64})
+  yidxs = get_yidxs(g.losses)
+  scale!(gx,0)
+
+  #Update the gradient, go by column then by row
+  Threads.@threads for j in 1:length(g.losses)
+    #Yj for computing gradient
+    @inbounds Yj = view(g.Y, :, yidxs[j])
+    obsex = g.observed_examples[j]
+
+    #Take whole columns of XY and A and take the gradient of those
+    @inbounds Aj = convert(Array, g.A[obsex, j])
+    @inbounds XYj = XY[j]
+    grads = grad(g.losses[j], XYj, Aj)
+
+    #Single dimensional losses
+    if isa(grads, Vector)
+      for e in 1:length(obsex)
+        #i = obsex[e], so update that portion of gx
+        @inbounds gxi = view(gx, :, obsex[e])
+        axpy!(grads[e], Yj, gxi)
+      end
+    else
+      for e in 1:length(obsex)
+        @inbounds gxi = view(gx, :, obsex[e])
+        gemm!('N','N',1.0,Yj, grads[e,:], 1.0, gxi)
       end
     end
   end
 end
 
-function reconstruct_obs(g::GGLRM)
-  XY = spzeros(size(g.X,2), size(g.Y,2))
-  reconstruct_obs!(g, XY)
-  XY
+@inline function _threadedupdateGradY!(g::AbstractGLRM, XY::Array{VecOrMat{Float64}}, gy::Matrix{Float64})
+  yidxs = get_yidxs(g.losses)
+  #scale y gradient to zero
+  scale!(gy, 0)
+
+  #Update the gradient
+  Threads.@threads for j in 1:length(g.losses)
+    @inbounds gyj = view(gy, :, yidxs[j])
+    obsex = g.observed_examples[j]
+    #Take whole columns of XY and A and take the gradient of those
+    @inbounds Aj = convert(Array, g.A[obsex, j])
+    @inbounds XYj = XY[j]
+    grads = grad(g.losses[j], XYj, Aj)
+    #Single dimensional losses
+    if isa(grads, Vector)
+      for e in 1:length(obsex)
+        #i = obsex[e], so use that for Xi
+        @inbounds Xi = view(g.X, :, obsex[e])
+        axpy!(grads[e], Xi, gyj)
+      end
+    else
+      for e in 1:length(obsex)
+        @inbounds Xi = view(g.X, :, obsex[e])
+        gemm!('N','T',1.0, Xi, grads[e,:], 1.0, gyj)
+      end
+    end
+  end
 end
 
 #Does a line search for the step size for X, returns the new step size
 @inline function _threadedproxStepX!(g::AbstractGLRM, params::ProxGradParams,
                             newX::Matrix{Float64}, gx::Matrix{Float64},
-                            XY::SparseMatrixCSC{Float64}, newXY::SparseMatrixCSC{Float64},
+                            XY::Array{VecOrMat{Float64}}, newXY::Array{VecOrMat{Float64}},
                             αx::Number)
   #l = 1.5
   l = maximum(map(length, g.observed_features))+1#(mapreduce(length,+,g.observed_features) + 1)
 
-  obj = threaded_loss_objective(g,XY) + evaluate(g.rx, g.X)
+  obj = sparse_loss_objective(g,XY) + evaluate(g.rx, g.X)
   newobj = NaN
   while αx > params.min_stepsize #Linesearch to find the new step size
     stepsize = αx/l
@@ -36,7 +123,7 @@ end
     axpy!(-stepsize, gx, newX)
     prox!(g.rx, newX, stepsize)
     reconstruct_obs!(g, newXY, X=newX)#At_mul_B!(newXY, newX, g.Y)
-    newobj = threaded_loss_objective(g, newXY) + evaluate(g.rx, newX)
+    newobj = sparse_loss_objective(g, newXY) + evaluate(g.rx, newX)
     #newobj = threaded_objective(g, newXY)
     if newobj < obj
       copy!(g.X, newX)
@@ -56,19 +143,19 @@ end
 
 @inline function _threadedproxStepY!(g::AbstractGLRM, params::ProxGradParams,
                               newY::Matrix{Float64}, gy::Matrix{Float64},
-                              XY::SparseMatrixCSC{Float64}, newXY::SparseMatrixCSC{Float64},
+                              XY::Array{VecOrMat{Float64}}, newXY::Array{VecOrMat{Float64}},
                               αy::Number)
   #l = 1.5
   l = maximum(map(length, g.observed_examples)) + 1#(mapreduce(length,+,g.observed_features) + 1)
   #obj = threaded_objective(g,XY)
-  obj = threaded_loss_objective(g, XY) + evaluate(g.ry, g.Y)
+  obj = sparse_loss_objective(g, XY) + evaluate(g.ry, g.Y)
   newobj = NaN
   while αy > params.min_stepsize #Linesearch to find the new step size
     stepsize = αy/l
     axpy!(-stepsize, gy, newY)
     prox!(g.ry, newY, stepsize)
     reconstruct_obs!(g, newXY, Y=newY)#At_mul_B!(newXY, g.X, newY)
-    newobj = threaded_loss_objective(g, newXY) + evaluate(g.ry, newY)
+    newobj = sparse_loss_objective(g, newXY) + evaluate(g.ry, newY)
     #newobj = threaded_objective(g, newXY)
     if newobj < obj
       copy!(g.Y, newY)
@@ -96,11 +183,10 @@ function fit_sparse!(g::GGLRM,
   yidxs = get_yidxs(g.losses)
 
   #Initialize X*Y
-  XY = spzeros(size(X,2), size(Y,2))
-  reconstruct_obs!(g, XY)
+  XY = reconstruct_obs(g)
 
   tm = 0
-  update_ch!(ch, tm, whole_objective(g,XY))
+  update_ch!(ch, tm, sparse_whole_objective(g,XY))
 
   #Step sizes
   αx = params.stepsize
@@ -111,7 +197,7 @@ function fit_sparse!(g::GGLRM,
 
   newX = copy(X)
   newY = copy(Y)
-  newXY = copy(XY)
+  newXY = deepcopy(XY) #It's a ragged array of matrices, so deepcopy is needed
 
   #Gradient matrices
   gx = zeros(X)
