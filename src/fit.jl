@@ -191,7 +191,7 @@ function LowRankModels.fit!(g::GGLRM,
 
   tm = 0
   update_ch!(ch, tm, whole_objective(g,XY))
-
+  (objx, objy) = (NaN, NaN)
   #Step sizes
   αx = params.stepsize
   αy = params.stepsize
@@ -210,17 +210,20 @@ function LowRankModels.fit!(g::GGLRM,
   if verbose println("Fitting GGLRM") end
   for t in 1:params.max_iter
     #X update-----------------------------------------------------------------
-    #_threadedupdateGradX!(g,XY,gx)
-    _updateGradX!(g,XY,gx)
-    #Take a prox step with line search
-    αx, objx = _proxStepX!(g, params, newX, gx, XY, newXY, αx)
-    At_mul_B!(XY, X, Y) #Get the new XY matrix for objective
-
+    for xit in 1:params.inner_iter_X
+      #_threadedupdateGradX!(g,XY,gx)
+      _updateGradX!(g,XY,gx)
+      #Take a prox step with line search
+      αx, objx = _proxStepX!(g, params, newX, gx, XY, newXY, αx)
+      At_mul_B!(XY, X, Y) #Get the new XY matrix for objective
+    end
     #Y Update---------------------------------------------------------------
-    #_threadedupdateGradY!(g,XY,gy)
-    _updateGradY!(g,XY,gy)
-    αy, objy = _proxStepY!(g, params, newY, gy, XY, newXY, αy)
-    At_mul_B!(XY, X, Y) #Get the new XY matrix for objective
+    for yit in 1:params.inner_iter_Y
+      #_threadedupdateGradY!(g,XY,gy)
+      _updateGradY!(g,XY,gy)
+      αy, objy = _proxStepY!(g, params, newY, gy, XY, newXY, αy)
+      At_mul_B!(XY, X, Y) #Get the new XY matrix for objective
+    end
     if t % 10 == 0
       if verbose
         println("Iteration $t, objective value: $(objy + evaluate(rx, g.X))")
