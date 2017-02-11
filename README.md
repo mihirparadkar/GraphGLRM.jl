@@ -1,6 +1,6 @@
 # GraphGLRM
 
-Graph Regularized Low Rank Models (http://github.com/madeleineudellLowRankModels.jl)
+Graph Regularized Low Rank Models (http://github.com/madeleineudell/LowRankModels.jl)
 Allows for the specification of graphs representing relation between different examples or features.
 
 # Overview
