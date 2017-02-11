@@ -70,12 +70,12 @@ In the style of most dimensionality reduction algorithms, the constructor
 is an acronym (Graph Generalized Low Rank Model).
 For a matrix with no missing data, usage is as follows:
 ```julia
-gm = GGLRM(A, loss, rx, ry, k)
+gm = GGLRM(A, losses, rx, ry, k)
 ```
 For a matrix with missing data, add an obs parameter to only optimize over
 the observed set of data
 ```julia
-gm = GGLRM(Amissing, loss, rx, ry, k, obs=observations(Amissing))
+gm = GGLRM(Amissing, losses, rx, ry, k, obs=observations(Amissing))
 ```
 To fit this model, call:
 ```julia
