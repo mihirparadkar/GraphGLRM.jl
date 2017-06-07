@@ -155,7 +155,7 @@ function fit_multithread!(g::GGLRM,
 
   tm = 0
   update_ch!(ch, tm, whole_objective(g,XY))
-  (objx, objy) = NaN, NaN
+  (objx, objy) = (threaded_loss_objective(g, XY) + evaluate(g.rx, g.X)), (threaded_loss_objective(g, XY) + evaluate(g.ry, g.Y))
   #Step sizes
   αx = params.stepsize
   αy = params.stepsize
@@ -188,13 +188,13 @@ function fit_multithread!(g::GGLRM,
       αy, objy = _threadedproxStepY!(g, params, newY, gy, XY, newXY, αy)
       At_mul_B!(XY, X, Y) #Get the new XY matrix for objective
     end
+    obj = threaded_loss_objective(g, XY) + evaluate(g.rx, g.X) + evaluate(g.ry, g.Y)
     if t % 10 == 0
       if verbose
-        println("Iteration $t, objective value: $(objy + evaluate(rx, g.X))")
+        println("Iteration $t, objective value: $(obj)")
       end
     end
     #Update convergence history
-    obj = objy + evaluate(rx, g.X)
     tm = time() - tm
     update_ch!(ch, tm, obj)
     tm = time()
