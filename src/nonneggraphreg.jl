@@ -1,4 +1,4 @@
-type NonNegGraphReg <: AbstractGraphReg
+mutable struct NonNegGraphReg <: AbstractGraphReg
   L::AbstractMatrix{Float64}
   scale::Float64
   idxgraph::IndexGraph

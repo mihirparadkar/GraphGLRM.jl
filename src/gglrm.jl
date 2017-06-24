@@ -1,6 +1,6 @@
-typealias MessyData Union{AbstractMatrix, DataFrame}
+const MessyData = Union{AbstractMatrix, DataFrame}
 
-type GGLRM{T <: MessyData} <: AbstractGLRM
+mutable struct GGLRM{T <: MessyData} <: AbstractGLRM
   A::T                         # The data table
   losses::Array{Loss,1}        # array of loss functions
   rx::Regularizer              # Regularizer to apply to each row of X

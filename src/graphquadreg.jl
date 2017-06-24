@@ -2,9 +2,9 @@
 #using LightGraphs
 #export MatrixRegularizer, GraphQuadReg, matrix, prox, prox!, evaluate
 
-abstract AbstractGraphReg <: LowRankModels.Regularizer
+abstract type AbstractGraphReg <: LowRankModels.Regularizer end
 
-type GraphQuadReg <: AbstractGraphReg
+mutable struct GraphQuadReg <: AbstractGraphReg
   QL::AbstractMatrix{Float64}
   scale::Float64
   quadamt::Float64
