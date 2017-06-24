@@ -41,8 +41,8 @@ Helper function to embed an index graph into multidimensional losses.
 function embed_graph(ig::IndexGraph, yidxs::Array)
   nodes = 1:yidxs[end][end]
   newedges = Tuple{Int64,Int64}[]
-  for (i,j) in edges(ig.graph)
-    push!(newedges, (yidxs[i], yidxs[j]))
+  for edge in edges(ig.graph)
+    push!(newedges, (yidxs[edge.src], yidxs[edge.dst]))
   end
   IndexGraph(nodes, newedges)
 end

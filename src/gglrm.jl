@@ -13,7 +13,8 @@ mutable struct GGLRM{T <: MessyData} <: AbstractGLRM
 end
 
 function no_multidim_edges(ry::AbstractGraphReg, losses::Array)
-  for (i,j) in edges(ry.idxgraph.graph)
+  for edge in edges(ry.idxgraph.graph)
+    i = edge.src; j = edge.dst
     if (embedding_dim(losses[i]) > 1) || (embedding_dim(losses[j]) > 1)
       error("Graph regularizer cannot have any edges into or out of a multidimensional loss")
     end
