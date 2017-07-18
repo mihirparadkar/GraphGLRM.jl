@@ -142,7 +142,7 @@ end
   αy, newobj
 end
 
-function fit_multithread!(g::GGLRM,
+function fit_multithread!(g::GGLRM;
                       params::ProxGradParams=ProxGradParams(),
                       ch::ConvergenceHistory=ConvergenceHistory("ProxGradGLRM"),
                       verbose=true)
